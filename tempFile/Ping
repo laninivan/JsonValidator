@@ -1,0 +1,2 @@
+ udm:( tns_AnsPingFIS:= Сервисный:tns_AnsPingFIS:новый(){tns_out:=tns_ReqPingFIS.tns_in});
+ return udm:(tns_AnsPingFIS);

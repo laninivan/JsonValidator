@@ -1,0 +1,38 @@
+if (udm:(НЕ ЕНД(Идентификатор))) 
+    udm:(ReqStoreDoc := Сервисный:ReqStoreDoc:поИд(Идентификатор) );
+if (udm:(ЕНД(ReqStoreDoc)))
+    udm:(ReqStoreDoc := Сервисный:ReqStoreDoc:Новый() );
+udm:(
+     ReqStoreDoc.client_RBSId :=client_RBSId ,
+     ReqStoreDoc.client_LastName :=client_LastName ,
+     ReqStoreDoc.client_FirstName :=client_FirstName ,
+     ReqStoreDoc.client_Patronymic :=client_Patronymic ,
+     ReqStoreDoc.client_PassportNumber :=client_PassportNumber , 
+     ReqStoreDoc.client_PassportSeries :=client_PassportSeries ,
+     ReqStoreDoc.client_BirthDate :=client_BirthDate ,
+     ReqStoreDoc.client_ClientId  :=client_ClientId  ,
+     ReqStoreDoc.product_ProductId :=product_ProductId ,
+     ReqStoreDoc.product_ProductType :=product_ProductType ,
+     ReqStoreDoc.product_ProductRegNumber :=product_ProductRegNumber ,
+     ReqStoreDoc.product_ProductRegDate:=product_ProductRegDate,
+     ReqStoreDoc.document_DocumentId :=document_DocumentId ,
+     ReqStoreDoc.document_DocumentType :=document_DocumentType ,
+     ReqStoreDoc.document_DocumentRegNumber :=document_DocumentRegNumber ,
+     ReqStoreDoc.document_DocumentRegDate :=document_DocumentRegDate ,
+     ReqStoreDoc.file_StorageGUID :=file_StorageGUID ,
+     ReqStoreDoc.file_FileSize :=file_FileSize ,
+     ReqStoreDoc.file_MIMEType :=file_MIMEType ,
+     ReqStoreDoc.file_MD5 :=file_MD5 ,
+     ReqStoreDoc.file_PageNumber :=file_PageNumber ,
+     ReqStoreDoc.file_PageCount  :=file_PageCount,
+     ReqStoreDoc.Статус  :=Статус,
+     ReqStoreDoc.Комментарий  :=Комментарий
+);
+
+return  udm:(ReqStoreDoc);
+
+
+
+
+
+

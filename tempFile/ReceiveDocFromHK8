@@ -1,0 +1,307 @@
+ var Ans ={};
+//Обозначили начальные статусы и логи
+var StatusText_total ='ОК';
+var StatusCode_total= '200';
+var Код_статуса_total;
+var Код_total ='200';
+var id_for_log = udm:(НАЧАТЬСТАТИСТИКУПОСТРАТЕГИЯМ());
+Log4JS.log('начало id_for_log ' +  id_for_log ,'ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log');
+Log4JS.log(udm:(ReqReceiveDoc),'ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log');
+try {
+   var ReqReceiveDoc_js= JSON.parse(udm:(ReqReceiveDoc)); // распарсили строку в объект
+ } catch(e){
+     StatusText_total = 'Невалидный json запроса';
+     Код_total = '500';
+}
+if (udm:(ДЛИНСТР(ReqReceiveDoc))<1){
+     StatusText_total = 'Невалидный json запроса';
+     Код_total = '500';
+     Log4JS.log('500','ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log');
+}
+
+ var Error =[];
+ var StatusText;
+ var MD5_t;
+ var Error_js;
+ var file_fis;
+
+ var doc_HD ;
+ var doc_fis;
+ var client_HD;
+ var client_fis;
+ var product_fis;
+ var file_fis;
+ var token_obj;
+ var token_valid;
+ var accessToken;
+ var doc_fis_exists;
+ var Название_поля;
+ var Тип_документа;
+ var Стоп_по_документу = false;
+ var doctype;
+ var producttype;
+ var ИС_прием = 'xECM_scan';
+ var Все_можно_принимать;
+ var KeyCloakToken;
+
+ if (Код_total!='500') {
+     try { 
+     accessToken = udm:(RESTHEADERVALUES("Authorization"));
+     //Log4JS.log('accessToken ' +  accessToken ,'ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log'); //логируем приходящий токен))
+     }catch(e){
+     token_valid = 'Unauthorized';
+     }
+     if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+     try { //проверка токена на права и создание объекта токена с полем clientId (для понимания -- это хЕСМ или ХКБ)
+               token_obj = JSON.parse(udm:(Сервисный:tokenAuthenticationKeycloak_obj(js:string((String(accessToken))))));
+               token_valid = token_obj.res;
+          } catch(e){
+               token_valid = 'Unauthorized';
+          }
+     } else {
+     token_valid = 'Unauthorized'; 
+     }
+   //  token_valid ="Ok";
+     if (token_valid !="Ok"){ //Если токен просрочен или не авторизован, записываем код и не проверяем запрос
+          Код_total = (token_valid =="Token expired")?'402':'401';
+          Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+          StatusCode_total = parseInt(Код_статуса_total.Код);
+          StatusText_total = String(Код_статуса_total.Название) ;
+     
+     } else if (udm:(ЕНД(Основной:Тип_ИС:По_ClientID(js:string(token_obj.clientId))[0]))) { //проверка на то, что в Тип_ИС есть такой clientId из токена
+               Код_total = '401';
+               Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+               StatusCode_total = parseInt(Код_статуса_total.Код);
+               StatusText_total = String(Код_статуса_total.Название) ;
+          } else {
+          udm:(Тип_ИС := Основной:Тип_ИС:По_ClientID(js:string(token_obj.clientId))[0]);
+          var login_for_user_search;
+
+          if (udm:(Тип_ИС.Код) == 'xECM_scan') { //определяем логин искомого пользователя по типу_ис
+               login_for_user_search='xECM';
+               } else {
+                    login_for_user_search='ХКБСкан';
+                    }
+
+          udm:(Разрешения_ИС := Основной:Разрешения_ИС_временный:Все_разрешенные_по_ИС(Тип_ИС)); // вСЕ Разрешения
+          Все_можно_принимать =  (udm:(КОЛИЧЕСТВО(Разрешения_ИС) == КОЛИЧЕСТВО(Разрешения_ИС[ЕНД(этот.Тип_продукта) И ЕНД(этот.Тип_документа) И Группа_записи == 1])));
+          
+          if (!!ReqReceiveDoc_js && !!ReqReceiveDoc_js.Document){ //заполняем поля из json'а
+               for (var j=0;j<ReqReceiveDoc_js.Document.length;j++){
+                    var doc_j = ReqReceiveDoc_js.Document[j];
+                    doc_fis_exists=null;
+                    product_fis = null;
+                    client_fis= null;
+                    udm:(Дата_продукта :=НД(),Номер_документа:=НД(),Тип_документа:=НД(),Номер:=НД(),Тип_продукта:=НД(), Страница:=НД());
+                    var StatusCode ='200';
+                    if (!!doc_j.Organization)      {udm:(Организация:=js:string(doc_j.Organization));}
+                    if (!doc_j.DocumentId)         { Название_поля ='"DocumentId"'; StatusCode = '412';  } else  {udm:(Ид_в_ИС:=js:string(doc_j.DocumentId));}
+                    if (!doc_j.DocumentType)       { Название_поля ='"DocumentType"'; StatusCode = '412'; }      else { udm:(Тип_документа :=Основной:Тип_документа:По_названию(js:string(doc_j.DocumentType))[0] );}
+                    if (!doc_j.ProductRegNumber)   { Название_поля ='"ProductRegNumber"'; StatusCode = '412'; }  else {udm:(Номер := js:string(doc_j.ProductRegNumber));}
+                    if (!doc_j.FileName)           { Название_поля ='"FileName"'; StatusCode = '412'; }          else {udm:(Название_файла:=js:string(doc_j.FileName));}
+                    if (!doc_j.FileSize)           { /* Название_поля ='"FileSize"'; StatusCode = '412'; */ }          else {udm:(Размер:=js:целое(doc_j.FileSize));}
+                    if (!doc_j.MIMEType)           { Название_поля ='"MIMEType"'; StatusCode = '412'; }          else {udm:(Расширение_файла:=Основной:Расширение_файла:По_mimetype(js:string(doc_j.MIMEType))[0]);}
+                    if (!doc_j.MD5)                { /* Название_поля ='"MD5"'; StatusCode = '412'; */ }               else {udm:(Хэш:=js:string(doc_j.MD5));}
+                    if (!doc_j.PagesCount)         { /* Название_поля ='"PagesCount"'; StatusCode = '412'; */ }        else {udm:(Всего_страниц:=js:целое(doc_j.PagesCount));}
+                    //if (!doc_j.File)               { Название_поля ='"File"'; StatusCode = '412'; }        else {     udm:(Бинарник := js:binary(doc_j.File));}
+                    
+                    if ((!doc_j.File && !doc_j.GUID_storage) || (!!doc_j.File && !!doc_j.GUID_storage)) { //проверка на наличие только бинарника или гуида
+                         Название_поля ='"File"'; StatusCode = '501';
+                    } else if (!!doc_j.File) {
+                         udm:(Бинарник := js:binary(doc_j.File));
+                    } else {
+                         udm:(guid_storage := js:string(doc_j.GUID_storage));
+                    }
+
+                    if (!!doc_j.MIMEType && udm:(ЕНД(Расширение_файла))) { //код статуса, если есть MIMEType, но он некорректный (если его нет, то ошибка 412)
+                         StatusCode = '502';
+                    }
+                 
+                    if (!!doc_j.PageNumber)        {udm:(Страница:=js:целое(doc_j.PageNumber));}
+                    
+                    if (StatusCode == '200') {
+                   // udm:(Бинарник := js:binary(doc_j.File));
+                    if (udm:(НЕ ЕНД(Бинарник))) { //сравниваем MD5 рассчитанный и поданный в запросе только если есть бинарник, а не гуид
+                        MD5_t = Packages.org.apache.commons.codec.digest.DigestUtils.md5Hex(udm:(Бинарник)).toUpperCase();
+                        // StatusCode_total =  StatusCode_total +  MD5_t;
+                        if (MD5_t != (doc_j.MD5).toUpperCase() ){
+						StatusCode = '417';	
+						//StatusText = 'Рассчитан другой "MD5" ' +MD5_t ; StatusCode = '500';
+                    }
+                    }
+                    }
+
+                    //проверяем, можно ли принимать данный Тип_продукта
+                    //тут используются группы записи 1 или 2 (разрешение полное и запрещение соответственно), то типа если ((продукт НЕ однозначно разрешен ИЛИ однозначно запрещен) И не все можно принимать), то ошибку выдаем
+                    if (!Все_можно_принимать && (  !udm:( ИНДЕКСЭЛКОЛ(Разрешения_ИС[этот.Группа_записи=1][ЕНД(этот.Тип_продукта) ИЛИ этот.Тип_продукта.Код = "Кредитный_договор" ИЛИ этот.Тип_продукта.Код = "Депозитный_договор" ИЛИ этот.Тип_продукта.Код = "Неизвестный_продукт"].Тип_документа.Название,Тип_документа.Название)>-1  ) ||
+                    udm:( ИНДЕКСЭЛКОЛ(Разрешения_ИС[этот.Группа_записи=2][ЕНД(этот.Тип_продукта) ИЛИ этот.Тип_продукта.Код = "Кредитный_договор" ИЛИ этот.Тип_продукта.Код = "Депозитный_договор" ИЛИ этот.Тип_продукта.Код = "Неизвестный_продукт"].Тип_документа.Название,Тип_документа.Название)>-1  ))){
+                         Стоп_по_документу = true;
+                         doctype = doc_j.DocumentType;  
+					producttype = '';  
+					StatusCode = '411';
+                    } else if (udm:(ЕНД(Тип_документа))){ //Это для ХКБ условие: если получено значение поля "DocumentType", отсутствующее в справочнике типов документов - нужно добавить это значение в справочник
+                         udm:(Тип_документа := Основной:Тип_документа:новый());
+                         udm:(Тип_документа.Название := js:string(doc_j.DocumentType));
+                         udm:(Тип_документа.Код := js:string(doc_j.DocumentType));
+                         udm:(Тип_документа.Актуально := true);
+                    }
+
+                    // if (udm:(ЕНД(Тип_документа))){
+                    //      //StatusCode = '418'; 
+                    //      udm:(Тип_документа := Основной:Тип_документа:новый());
+                    //      udm:(Тип_документа.Название := js:string(doc_j.DocumentType));
+                    //      udm:(Тип_документа.Код := js:string(doc_j.DocumentType));
+                    //      udm:(Тип_документа.Актуально := true);
+                    // } else {
+                    //        if (!Все_можно_принимать && (  !udm:( ИНДЕКСЭЛКОЛ(Разрешения_ИС[этот.Группа_записи=1][ЕНД(этот.Тип_продукта) ИЛИ этот.Тип_продукта.Код = "Кредитный_договор" ИЛИ этот.Тип_продукта.Код = "Депозитный_договор" ИЛИ этот.Тип_продукта.Код = "Неизвестный_продукт"].Тип_документа.Название,Тип_документа.Название)>-1  ) ||
+                    //           udm:( ИНДЕКСЭЛКОЛ(Разрешения_ИС[этот.Группа_записи=2][ЕНД(этот.Тип_продукта) ИЛИ этот.Тип_продукта.Код = "Кредитный_договор" ИЛИ этот.Тип_продукта.Код = "Депозитный_договор" ИЛИ этот.Тип_продукта.Код = "Неизвестный_продукт"].Тип_документа.Название,Тип_документа.Название)>-1  ))){
+                    //                Стоп_по_документу = true;
+                    //                doctype = doc_j.DocumentType;  
+				// 			producttype = '';  
+				// 			StatusCode = '411';
+                    //                udm:(ОТКАТИТЬ());
+                    //         }
+                    // }
+
+                    // if (StatusCode != '200' && StatusCode_total!='500') { 
+                    //      Error_js ={};
+                    //      Error_js.DocumentId = doc_j.DocumentId;
+				// 	var  Код_статуса = udm:(Основной:Коды_статусов:По_коду(js:string(StatusCode))[0]);
+                    //      Error_js.StatusCode = parseInt(Код_статуса.Код);
+                    //      Error_js.StatusText = String(Код_статуса.Название).replace('%Название_поля%',Название_поля);
+                    //      Error_js.StatusText = String(Error_js.StatusText).replace('%MD5%',MD5_t);
+                    //      Error_js.StatusText = String(Error_js.StatusText).replace('%doctype%',doctype);
+                    //      Error_js.StatusText = String(Error_js.StatusText).replace('%ИС_прием%',ИС_прием);
+				// 	Error_js.StatusText = (Error_js.StatusText).replace('%producttype%',producttype);
+                    //      Error.push(Error_js);      
+                    // }
+                    if (StatusCode == '200'  && StatusCode_total!='500') {
+                         file_fis = udm:(Основной:Файл_временный:Для_версионирования_xECM(Ид_в_ИС, Хэш, Номер, Тип_ИС)[0]);
+                 
+                         if (!!file_fis) { //нашли такой документ (?) в базе
+                              udm:(Основной:Файл:поИд(js:string(file_fis.Идентификатор)).КАЖДЫЙ(x|x.Название :=Название_файла,x.Всего_страниц :=Всего_страниц,x.Страница :=Страница)); 
+                              udm:(Документ := Основной:Документ:поИд(js:string(file_fis.Название_документа)));
+                              udm:(Версия_документа := Основной:Версии_документа:По_документу_последняя(Документ,Документ.Номер_актуальной_версии)[0]);
+                              if (udm:(Версия_документа.Номер_документа) != udm:(Номер)) {
+                                    //udm:(Версия_документа.Номер_документа :=Номер);
+                                    //udm:(Основной:Продукты:поИд(js:string(file_fis.Название_продукта)).Номер:=Номер);
+                              }
+                              if (udm:(Документ.Тип_документа) != udm:(Тип_документа)) udm:(Документ.Тип_документа :=Тип_документа)
+                              udm:(Основной:Документ:поИд(js:string(file_fis.Название_документа)).Тип_документа :=Тип_документа);
+                              if (file_fis.Хэш != udm:(Хэш)) { //если новый файл в уже известном документе, то повышаем версию и обновляем файл
+                                   //udm:(Основной:put_file_in_storage(НД(), js:string(file_fis.Идентификатор), НД(), НД(), Бинарник));
+                                   udm:(Версия_документа := Основной:add_or_upd_doc(Тип_документа, Тип_ИС, НД(), СЕЙЧАС(), НД(), НД(), Номер_документа, Ид_в_ИС, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0], НД(), НД(), НД(), НД()));
+                                   udm:(фиксировать());
+                                   udm:(Документ := Версия_документа.Документ);
+                                   if (udm:(Организация)) {udm:(Версия_документа.Организация := Организация);}
+                                   file_fis = udm:(Основной:add_or_upd_file(Название_файла, Расширение_файла, Размер, Страница, СЕЙЧАС(), НД(), НД(),Всего_страниц, guid_storage, Хэш, Бинарник, js:string(file_fis.Идентификатор), Версия_документа, true,true));
+                              }
+                              
+                         } else { //не нашли такой документ в ЭА
+                              //doc_HD = udm:(HDDWH_bind:VW_HD_DOG4FIS:По_номеру(Номер)[0]);
+                              //if (!doc_HD) udm:(HDDWH_bind:VW_HD_DOG4FIS:По_юр_номеру_ХКБ(Номер)[0]);
+                              doc_HD = udm:(HDDWH_bind:VW_HD_DOG4FIS:По_юр_номеру_ХКБ(Номер)[0]);  //для ХКБ ищем только по юр номеру
+                              if (!!doc_HD) { //нашли документ
+                                   udm:(Ид_в_РБС := js:string(doc_HD.SUBJ_ID));
+                                   if (!!doc_HD.OPEN_DT)             udm:(Дата_продукта := ДАТАИЗВРЕМ(js:datetime(doc_HD.OPEN_DT)));        else  udm:(Дата_продукта := НД());
+                                   if (!!doc_HD.TYP_KR){ 
+                                        if (doc_HD.TYP_KR =='DEP')
+                                             udm:(Тип_продукта := Основной:Тип_продукта:По_коду('Депозитный_договор')[0]);
+                                        else 
+                                             udm:(Тип_продукта := Основной:Тип_продукта:По_коду('Кредитный_договор')[0]);
+                                   } else  udm:(Тип_продукта := НД());
+
+                                   
+                                   if (!!doc_HD.PRODUCT_NM_LONG)     udm:(Вид_продукта := js:string(doc_HD.PRODUCT_NM_LONG));                else  udm:(Вид_продукта :=НД());
+                                   client_HD = udm:(HDDWH_bind:VW_HD_CLIENT4FIS:По_ид_в_РБС_ХКБ(Ид_в_РБС)[0]);
+                                   if (!!client_HD){ //нашли клиента
+                                        if (!!client_HD.LASTNAME)          udm:(Фамилия       := js:string(client_HD.LASTNAME));             else udm:(Фамилия := НД());
+                                        if (!!client_HD.FIRSTNAME)         udm:(Имя           := js:string(client_HD.FIRSTNAME));            else udm:(Имя := НД());
+                                        if (!!client_HD.MIDDLENAME)        udm:(Отчество      := js:string(client_HD.MIDDLENAME));           else udm:(Отчество := НД());
+                              
+                                        if (!!client_HD.SERNUM && ((String(client_HD.SERNUM)).length >10))          {
+                                             udm:(Номер_паспорта   := ПРАВЗНАКИ(js:string(client_HD.SERNUM),6));     
+                                             udm:(Серия            := ЛЕВЗНАКИ(js:string(client_HD.SERNUM),5));     
+                                        } else {
+                                             udm:(Номер_паспорта := НД());
+                                             udm:(Серия          := НД()); 
+                                        }
+                                        if (!!client_HD.BIRTHDATE)         udm:(Дата_рождения := ДАТАИЗВРЕМ(js:datetime(client_HD.BIRTHDATE)));              else udm:(Дата_рождения := НД());
+
+                                        client_fis = udm:(Основной:add_or_upd_client(Ид_в_РБС, Фамилия, Имя, Отчество, Серия, Номер_паспорта, Дата_рождения, НД(), НД(), НД(), Тип_ИС, НД(), НД(), false, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0]));
+                                        udm:(фиксировать());
+                                   } else {
+                                        client_fis = udm:(Основной:Клиент_фл:поИд(Основной:Получить_значение_параметра("Ид_неидентифицированного_клиента") )); // неидентифицированный клиент
+                                   }
+                                   
+                                   product_fis = udm:(Основной:add_or_upd_product(Тип_продукта, Номер, Дата_продукта, НД(), js:Основной:Клиент_фл(client_fis), НД(), Вид_продукта, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0]));
+                                   udm:(фиксировать());
+                              } else {
+                                   // тут стоит поискать по номеру договора в ЭА, может есть такой 
+                                   doc_fis = udm:(Основной:Поиск_клиента:По_номеру_документа_для_сервиса(Номер)[0]);
+                                   if (!!doc_fis) {
+                                        client_fis =  udm:(Основной:Клиент_фл:поИд(js:string(doc_fis.Ид_клиента)));
+                                        product_fis  =  udm:(Основной:Продукты:поИд(js:string(doc_fis.Ид_продукта)));     
+                                        //doc_fis_exists = udm:(Основной:Поиск_документа:По_продукту_типу_документа(js:string(doc_fis.Ид_продукта),Тип_документа)[ЕНД(этот.Номер_документа)][0]);
+                                        doc_fis_exists = udm:(Основной:Поиск_документа:По_продукту_типу_документа(js:string(doc_fis.Ид_продукта),Тип_документа)[ЕНД(Ид_в_ИС)][0]);
+                                        if (!!doc_fis_exists) {
+                                                  udm:(Версия_документа := Основной:add_or_upd_doc(Тип_документа, Тип_ИС, js:Основной:Клиент_фл(client_fis), СЕЙЧАС(), НД(), НД(), Номер_документа, Ид_в_ИС, js:string(doc_fis_exists.Ид_документа), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0], НД(), НД(), НД(), НД()));
+                                                  udm:(Документ := Версия_документа.Документ);
+                                        }
+
+                                   } else { //Тут ошибка "информация о данном договоре отсутствует"
+                                        StatusCode = '503';
+
+                                        //ПРОВЕРИТЬ ЭТОТ БЛОК! ВОЗМОЖНО НЕ ТРЕБУЕТСЯ ЗАГРУЖАТЬ ДОКУМЕНТ
+                                        /*
+                                        udm:(Тип_продукта := Основной:Тип_продукта:По_коду('Неизвестный_продукт')[0]);
+                                        client_fis = udm:(Основной:Клиент_фл:поИд(Основной:Получить_значение_параметра("Ид_неидентифицированного_клиента") )); // неидентифицированный клиент
+                                        product_fis = udm:(Основной:add_or_upd_product(Тип_продукта, Номер, НД(), НД(), js:Основной:Клиент_фл(client_fis), НД(), НД(), НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0]));
+                                        udm:(фиксировать());
+                                        */
+                                   }
+                              } 
+                              if (StatusCode == '200'  && StatusCode_total!='500') {//добавлено 130423
+                              udm:(Основной:add_prod_is(js:Основной:Продукты(product_fis), Тип_ИС, Ид_в_ИС, НД())); // новая связка   , но ид-к тот же что у документа
+                              if (!doc_fis_exists)     {
+                                   udm:(Версия_документа := Основной:add_or_upd_doc(Тип_документа, Тип_ИС, js:Основной:Клиент_фл(client_fis), СЕЙЧАС(), НД(), НД(), Номер_документа, Ид_в_ИС, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0], НД(), НД(), НД(), НД()));
+                                   udm:(фиксировать());
+                                   udm:(Документ := Версия_документа.Документ);
+                              }
+                              udm:(Основной:add_or_upd_doc_product(js:Основной:Продукты(product_fis),Документ,НД()));
+                              if (udm:(Организация)) {udm:(Версия_документа.Организация := Организация);}
+                                       
+                              file_fis = udm:(Основной:add_or_upd_file(Название_файла, Расширение_файла, Размер, Страница, СЕЙЧАС(), НД(), НД(),Всего_страниц, guid_storage, Хэш, Бинарник, НД(), Версия_документа, true,true));
+                              }
+                              }//добавлено 130423
+                    // StatusCode_total =   StatusCode_total +   ' fggf ' +   Packages.org.apache.commons.codec.digest.DigestUtils.md5Hex(file_fis.Данные).toUpperCase();   
+                    }
+                    if (StatusCode != '200' && StatusCode_total!='500') { //тут чисто обработка ошибки
+                         Error_js ={};
+                         Error_js.DocumentId = doc_j.DocumentId;
+					var  Код_статуса = udm:(Основной:Коды_статусов:По_коду(js:string(StatusCode))[0]);
+                         Error_js.StatusCode = parseInt(Код_статуса.Код);
+                         Error_js.StatusText = String(Код_статуса.Название).replace('%Название_поля%',Название_поля);
+                         Error_js.StatusText = String(Error_js.StatusText).replace('%MD5%',MD5_t);
+                         Error_js.StatusText = String(Error_js.StatusText).replace('%doctype%',doctype);
+                         Error_js.StatusText = String(Error_js.StatusText).replace('%ИС_прием%',ИС_прием);
+					Error_js.StatusText = (Error_js.StatusText).replace('%producttype%',producttype);
+                         Error.push(Error_js);      
+                    }
+               }
+
+          }
+     }
+}
+Ans.Status={};
+
+Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+Ans.Status.StatusCode =parseInt(Код_статуса_total.Код);
+Ans.Status.StatusText = String(Код_статуса_total.Название);
+if (!!Error && Error.length>0) {Ans.AnsStoreDoc={}; Ans.AnsStoreDoc.Error =Error;  }
+Log4JS.log(JSON.stringify(Ans),'ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log');
+Log4JS.log('окончание id_for_log ' +  id_for_log ,'ReceiveDocFromHKB_' + udm:(СЕГОДНЯ()) + '.log');
+udm:(фиксировать());
+udm:(RESTRESPONSESTATUS(js:целое(Ans.Status.StatusCode)));
+udm:(AnsReceiveDoc := js:string(JSON.stringify(Ans)));
+return udm:(AnsReceiveDoc);

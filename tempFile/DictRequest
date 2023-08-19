@@ -1,0 +1,59 @@
+var ReqDictRequest_js = JSON.parse(udm:(ReqDictRequest_str)); // распарсили строку в объект
+var arr;
+var AnsDictRequest ={}; // объект ответа 
+var DictType;
+var item;
+var token_valid;
+var accessToken;
+var Код_статуса_total;
+var Код_total ='200';
+AnsDictRequest.Status= {};
+
+try { 
+    accessToken = udm:(RESTHEADERVALUES("Authorization"));
+}catch(e){
+    token_valid = 'Unauthorized';
+}
+if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+   try { 
+         token_valid =udm:(Сервисный:tokenAuthenticationKeycloak(js:string((String(accessToken)))));
+      }catch(e){
+         token_valid = 'Unauthorized';
+   }
+} else {
+   token_valid = 'Unauthorized';
+}
+
+if (token_valid !="Ok"){
+   Код_total = (token_valid =="Token expired")?'402':'401';
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+   AnsDictRequest.Status.StatusCode =parseInt(Код_статуса_total.Код);
+   AnsDictRequest.Status.StatusText  = String(Код_статуса_total.Название) ;
+   udm:(AnsDictRequest_str := js:string(JSON.stringify(AnsDictRequest))); 
+} else { 
+   if (!!ReqDictRequest_js &&   ReqDictRequest_js.DictType) {
+      DictType = String(ReqDictRequest_js.DictType);
+      arr = udm:(Основной:Для_DictRequest:По_DictType(js:string(DictType)));
+   }
+
+   AnsDictRequest.DictType = DictType;
+   if (!!arr && arr.length>0){
+      AnsDictRequest.DictRecords = {};
+      AnsDictRequest.DictRecords.DictRecord =[];
+      for (var j=0; j<arr.length; j++){
+         item = {};
+         item.Code = String(arr[j].Code);
+         item.Name = String(arr[j].Name_n);
+         AnsDictRequest.DictRecords.DictRecord.push(item);
+      }
+   } 
+
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]); 
+   AnsDictRequest.Status.StatusCode =parseInt(Код_статуса_total.Код);;
+   AnsDictRequest.Status.StatusText  =String(Код_статуса_total.Название);
+}
+  udm:(AnsDictRequest_str := js:string( JSON.stringify(AnsDictRequest)));
+  udm:(RESTRESPONSESTATUS(js:целое( AnsDictRequest.Status.StatusCode)));
+return udm:(AnsDictRequest_str);
+
+ 

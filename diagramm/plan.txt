@@ -1,0 +1,20 @@
+    РЕСУРСЫ:
+    Сайт с тестовыми JSON файлами:
+https://awesomeopensource.com/project/jdorfman/awesome-json-datasets
+
+    Валидатор es5 версии
+https://eslint.org/play/#eyJ0ZXh0IjoiIiwib3B0aW9ucyI6eyJlbnYiOnt9LCJydWxlcyI6e30sInBhcnNlck9wdGlvbnMiOnsiZWNtYUZlYXR1cmVzIjp7fSwiZWNtYVZlcnNpb24iOjUsInNvdXJjZVR5cGUiOiJzY3JpcHQifX19
+
+    Валидатор npm
+https://www.npmjs.com/package/es5-validator
+
+    По parse json
+https://habr.com/ru/companies/vk/articles/314014/
+
+
+    ЗАДАЧИ:
+1) Добавить валидацию данных, основываясь JSON Schemes.
+
+а)Добавить сравнение количества дочерних в шаблоне и в объекте
+б)Добавить поля исключения или массив.
+в) сравнение числа полей не работает, если не будет существовать элемента, которым ожет отсутствовать, но ессть неописанный элемент. Решение - массив в родительскомо бъекте.

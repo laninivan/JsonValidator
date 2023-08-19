@@ -1,0 +1,60 @@
+
+    var result;
+    var arr_token_2;
+    var result = 'Unauthorized';
+    var arr_token_2_json;
+    var accessToken = String(udm:(Token));
+    accessToken = accessToken.replace('Bearer ','');
+    var RSAValid;
+    
+    try { 
+      if (accessToken.indexOf('.')>-1) {
+            var arr_token   = accessToken.split('.'); // токен состоит из трех частей разделенных точкой  
+            if (arr_token.length==3){
+                  // проверяем целостность подписи  по публичному  ключу https://keycloak-int-test.sovcombank.group/auth/realms/internalApi
+                  RSAValid = udm:(Основной:RsaVerify(Основной:get_param_integr(НД(),'public_key_keycloak'),js:string(arr_token[0]+'.'+arr_token[1]),js:string(arr_token[2])));      
+                  
+                  if (RSAValid) {
+                        var   str_data =  Packages.org.apache.commons.codec.binary.Base64.decodeBase64(arr_token[1]);
+                              
+                        var str = '';
+                        for (var i = 0; i < str_data.length; i++) {
+                                    str +=  (str_data[i] <= 0x7F)? ((str_data[i] === 0x25) ? "%25" : String.fromCharCode(str_data[i])) : ("%" + str_data[i].str_data(16).toUpperCase());
+                        }
+                        var   str_data_ = decodeURIComponent(str);
+                          arr_token_2 = str_data_;
+            
+            
+                              arr_token_2_json = JSON.parse(arr_token_2);
+                              var date_token_valid  = new Date(parseInt(arr_token_2_json.exp) * 1000);   
+                              var today = new Date();
+                              // если валидный проверяем что дата не истекла
+                              if (date_token_valid<today) {
+                                    result = "Token expired";
+                              } else {
+                                    if (!!arr_token_2_json.iss &&  (arr_token_2_json.iss.indexOf("keycloak")>-1 )) {
+                                                // проверяем наличие ролей      
+                                                if (!!arr_token_2_json.resource_access) {
+                                                      result =   JSON.stringify(arr_token_2_json.resource_access) ; //  arr_token_2_json.resource_access.backendContact; //200;
+                                                      if (!!arr_token_2_json.resource_access.backendContact || !!arr_token_2_json.resource_access.backendEA) {
+                                                            result ='Ok';
+                                                      }
+                                                }
+
+                                    }
+                              }
+                  } else {
+                        result = "Unauthorized";  
+                  }
+                  
+            }  
+      
+          
+      } 
+    }catch(e){
+       result = 'Unauthorized';
+      }
+
+   return result;
+
+

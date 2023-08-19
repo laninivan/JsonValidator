@@ -1,0 +1,114 @@
+var ReqScanRequest_js = JSON.parse(udm:(ReqScanRequest)); // распарсили строку в объект {"ReqScanRequest":{"Priority": "Стандартный", "Author": "Иванов Иван Иванович", "ScanRequests":[{"SearchResultId":"428"}]}}
+var arr;
+var AnsScanRequest_js ={}; // объект ответа 
+var DictType;
+var item;
+var token_valid;
+var accessToken;
+var IdRequest;
+var DocId;
+var ScanRequests;
+var Код_статуса_total;
+var Код_total ='200';  
+var StatusCode = 200;   
+var StatusText ='Ok';
+var Строка_j ;
+var Ans = {};
+Ans.Status= {};
+var regex = / {2,}/g;
+
+try { 
+    accessToken = udm:(RESTHEADERVALUES("Authorization"));
+}catch(e){
+    token_valid = 'Unauthorized';
+}
+if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+   try { 
+         token_valid =udm:(Сервисный:tokenAuthenticationKeycloak(js:string((String(accessToken)))));
+      }catch(e){
+         token_valid = 'Unauthorized';
+   }
+} else {
+   token_valid = 'Unauthorized';
+}
+
+
+if (token_valid !="Ok"){
+   Код_total = (token_valid =="Token expired")?'402':'401';
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+   StatusCode = parseInt(Код_статуса_total.Код);
+   StatusText  = String(Код_статуса_total.Название) ;
+   Ans.Status.StatusCode = StatusCode;
+   Ans.Status.StatusText = StatusText;
+   udm:(AnsScanRequest := js:string(JSON.stringify(Ans))); 
+} else { 
+   if (!!ReqScanRequest_js.ReqScanRequest && !!ReqScanRequest_js.ReqScanRequest.ScanRequests ){
+      if (ReqScanRequest_js.ReqScanRequest.Priority == "Стандартный")  {udm:(Приоритет_запроса_ОСГ:= 'REGULAR_SCAN_COPY_WO_URGENCY'); }else {udm:(Приоритет_запроса_ОСГ:= 'SCAN_COPY_ONE_HOUR_WO_URGENCY');}
+      if (!!ReqScanRequest_js.ReqScanRequest.Author) udm:(Внешний_автор_ФИО:=js:string(String(ReqScanRequest_js.ReqScanRequest.Author).trim().toUpperCase().replace(regex, ' ')));
+    
+      if (udm:(НЕ ЕНД(Внешний_автор_ФИО))) { 
+         udm:(Внешний_автор_ФИО:= ПРОПИСН(Внешний_автор_ФИО));
+         udm:(Внешний_автор:= Основной:Внешние_авторы:По_названию(ПРОПИСН(Внешний_автор_ФИО))[0]);
+         if (udm:(ЕНД(Внешний_автор))) {
+            //добавить автора 
+            udm:(Внешний_автор:= Основной:add_or_upd_vneshnie_avtory(Внешний_автор_ФИО,  Внешний_автор_ФИО, true, НД()));
+            udm:(ФИКСИРОВАТЬ());
+         }
+      } else {
+          udm:(Внешний_автор:=Основной:Внешние_авторы:По_коду('CONTACT')[0]); 
+      }
+      var arr = ReqScanRequest_js.ReqScanRequest.ScanRequests;
+      for (var j=0; j<arr.length; j++ ){
+         arr[j].SearchResultId; // ид результата 
+         if (!! arr[j].SearchResultId) udm:(ДОБАВИТЬ(Ид_результатов, js:string( arr[j].SearchResultId)));
+      }
+   } 
+
+   if (udm:(НЕ ЕПУСТО(Ид_результатов))){
+      udm:( Тип_запроса := 'Скан документа');
+      udm:(Запрос_в_ОСГ:= Основной:add_or_upd_zapros_osg(НД(),  НД(), НД(), НД(), НД(), Основной:Статус_согласования_наряда:По_коду('Не_рассмотрен')[0], Основной:Статус_запроса_ОСГ:По_коду('Создан')[0], НД(), НД(), Основной:Тип_ИС:По_коду('CONTACT')[0], Тип_запроса, Приоритет_запроса_ОСГ, НД(), НД()) );
+      udm:(ФИКСИРОВАТЬ()); // потому что нужен номер наряда потом 
+      udm:(Идентификатор:=ИДОБЪЕКТА(Запрос_в_ОСГ));
+
+
+       udm:(Строки_для_нарядов := Основной:Строки_для_нарядов:По_ид_результатов_новый(ПОДСТАВИТЬ(ПОДСТАВИТЬ(ТЕКСТ(Ид_результатов),']','',1),'[','',1)));
+
+      udm:(Запрос_в_ОСГ.Внешний_автор := Внешний_автор);
+
+      /* for (var j=0;j<udm:(КОЛИЧЕСТВО(Ид_результатов));j++){
+       
+         udm:(Основной:add_or_upd_doc_for_narjad(НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(),Запрос_в_ОСГ,true,Ид_результатов[js:целое(j)]));
+      }*/
+
+      for (var j=0;j<udm:(КОЛИЧЕСТВО(Строки_для_нарядов));j++){
+         Строка_j = udm:(Строки_для_нарядов[js:целое(j)]);
+         Строка_j.Дубль_наряда = (!!Строка_j.Дубль_наряда);
+         Строка_j.Сканы_ранее_загружались = (!!Строка_j.Сканы_ранее_загружались);
+         udm:(Основной:add_or_upd_doc_for_narjad(НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(), НД(), js:bool(Строка_j.Дубль_наряда), js:bool(Строка_j.Сканы_ранее_загружались),Запрос_в_ОСГ,true,Ид_результатов[js:целое(j)]));
+      }
+
+   }
+
+   
+   //Значение по умолчанию для поля Передан_инициатору в Запрос_в_ОСГ и Документы_для_наряда
+   udm:(Запрос_в_ОСГ.Сканы_у_инициатора := Основной:Передача_инициатору:По_коду('Нет')[0]);
+   udm:(Основной:Документы_для_наряда:По_запросу(Запрос_в_ОСГ).Передан_инициатору :=Основной:Передача_инициатору:По_коду('Нет')[0]);
+
+
+   if (udm:(НЕ ЕНД(Идентификатор))){
+      AnsScanRequest_js.ScanRequestId = String(udm:(Идентификатор));
+      Ans.AnsScanRequest =AnsScanRequest_js;
+       Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+      StatusCode = parseInt(Код_статуса_total.Код);
+      StatusText  = String(Код_статуса_total.Название) ;
+      Ans.Status.StatusCode = StatusCode;
+      Ans.Status.StatusText = StatusText;
+   } else {
+       Ans.Status.StatusCode =500;
+       Ans.Status.StatusText  = 'Bad request' ;
+   }
+}
+udm:(RESTRESPONSESTATUS(js:целое(Ans.Status.StatusCode)));
+udm:(AnsScanRequest := js:string( JSON.stringify(Ans)));
+return udm:(AnsScanRequest);
+ 

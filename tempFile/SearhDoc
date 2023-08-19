@@ -1,0 +1,306 @@
+//udm:(ReqDoc_str:='{"SearchParameters":{"SearchArea":"ea"},"SearchCriterias":{"SearchCriteria":[{"Client":{"FirstName":"Иван","Patronymic":"Иванович","LastName":"Иванов","BirthDate":"1973-10-06","PassportSeries":"85 41","PassportNumber":"356474"},"Product":{"ProductType":"Кредитный_договор","ProductRegDate":"2012-10-14","ProductRegNumber":"233221"}},{"Client":{"FirstName":"Адлександр","Patronymic":"Сергеевич","LastName":"Пушкин","BirthDate":"1987-01-23","PassportSeries":"22 33","PassportNumber":"222334"},"Product":{"ProductType":"Депозитный_договор","ProductRegDate":"2002-09-24","ProductRegNumber":"123144"}}]}}');
+var ReqDoc_js= JSON.parse(udm:(ReqDoc_str)); // распарсили строку в объект
+var Тип_поиска;
+var error = false;
+var token_valid;
+var Client_ik;
+var accessToken;
+var Код_статуса_total;
+var Код_total ='200';
+var AnsDoc ={}; // объект ответа 
+var id_for_log = udm:(НАЧАТЬСТАТИСТИКУПОСТРАТЕГИЯМ());
+var Кабинет_реестров = udm:(Основной:get_param_integr(Основной:Тип_ИС:По_коду('OSG')[0],'Кабинет_реестров')).split('@')[1];
+AnsDoc.Status= {};// объект статусов , пока хардкод 
+Log4JS.log('начало id_for_log ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+try { 
+    accessToken = udm:(RESTHEADERVALUES("Authorization"));
+  //  if (udm:(ТЕКУЩИЙПОЛЬЗОВАТЕЛЬ() =='MolokanovaEA')) {
+    //     accessToken = 'eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJBbjFwQTBTMl8wZjEtUU5rSUloQ3UwQnIycldIUGNTMHMwZk9ycDh6TDJRIn0.eyJleHAiOjE2NTk0MjAzMjYsImlhdCI6MTY1OTMzMzkyNiwianRpIjoiYjg4Y2ZhNDUtYWMzgggNS00ZjJiLWE3YWMtNDQ3N2Q5YTgxZmJmIiwiaXNzIjoiaHR0cHM6Ly9rZXljbG9hay1pbnQtdGVzdC5zb3Zjb21iYW5rLmdyb3VwL2F1dGgvcmVhbG1zL2ludGVybmFsQXBpIiwiYXVkIjpbImJhY2tlbmRDb250YWN0IiwiYmFja2VuZEZyb250RkwiLCJjbG91ZF9zdG9yYWdlIiwiYmFja2VuZEZpU0tGTyIsImJhY2tlbmRGSVMiXSwic3ViIjoiMzk3NTc5M2UtM2ZkMy00YTlkLWFkZDEtNDJiOTRkMmQ4NTUzIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoiYmFja2VuZEVBIiwiYWNyIjoiMSIsInJlc291cmNlX2FjY2VzcyI6eyJiYWNrZW5kQ29udGFjdCI6eyJyb2xlcyI6WyJyZWFkX2JhY2tlbmRDb250YWN0Il19LCJiYWNrZW5kRnJvbnRGTCI6eyJyb2xlcyI6WyJyZWFkX2JhY2tlbmRGcm9udEZMIl19LCJjbG91ZF9zdG9yYWdlIjp7InJvbGVzIjpbInJlYWQiLCJjcmVhdGUiLCJkZWxldGUiXX0sImJhY2tlbmRGaVNLRk8iOnsicm9sZXMiOlsicmVhZF9iYWNrZW5kRmlTS0ZPIl19LCJiYWNrZW5kRklTIjp7InJvbGVzIjpbInJlYWRfYmFja2VuZEZJUyJdfX0sInNjb3BlIjoiIiwiY2xpZW50SWQiOiJiYWNrZW5kRUEiLCJjbGllbnRIb3N0IjoiMTAuNjAuODUuMTQ3IiwiY2xpZW50QWRkcmVzcyI6IjEwLjYwLjg1LjE0NyJ9.Atr3y47I8biaXpnr9asCQ6n94-QXGr9g5HtpIwXL1Gycm8qdPYQtPKrBAuX72odjNKjvwQ4MI1dP671yX6NBtCguwWxE5jM_gdY2Js5FGpG9cJZ_fC2ZiPCU2Te5XjB96ihpcXTvB-Dr-qZNI3koGQS6QsEzPiMhj2Dg00g3S9FIX70I8kB8B_BT98qyGkJv0yPRWswq-21LbOtHgOEYoRFPwXHP5P2zEIwEB5LV9DRGG4SkPuTDnOq3ySZZq5BcaqjSsTix9Zf5lhiS9khHpiUyK3BK0-qMcwBgjuPRTnBESxr_A45e-aLGql5unAVn_ylrOEeBW3D4F16jKvHhWg';
+    //  } 
+     //Log4JS.log('accessToken ' +  accessToken ,'accessToken_' + udm:(СЕГОДНЯ()) + '.log');
+}catch(e){
+    token_valid = 'Unauthorized';
+}
+if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+   try { 
+         token_valid =udm:(Сервисный:tokenAuthenticationKeycloak(js:string((String(accessToken)))));
+      }catch(e){
+         token_valid = 'Unauthorized';
+   }
+} else {
+   token_valid = 'Unauthorized';
+}
+//token_valid = "Ok";
+if (token_valid !="Ok"){
+   Код_total = (token_valid =="Token expired")?'402':'401';
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+   AnsDoc.Status.StatusCode  = parseInt(Код_статуса_total.Код);
+   AnsDoc.Status.StatusText   = String(Код_статуса_total.Название) ;
+   udm:(AnsDoc_str := js:string(JSON.stringify(AnsDoc))); 
+} else { 
+
+   var SearchArea =  String(ReqDoc_js.SearchParameters.SearchArea);
+   switch (String(SearchArea)){
+      case 'ea': Тип_поиска = 'Контакт_ЭА'; break;
+      case 'osg': Тип_поиска = 'Контакт_ОСГ'; break;
+      case 'both': Тип_поиска = 'Контакт_ЭА_ОСГ'; break;
+      default: error = true;
+   }
+   var arr = ReqDoc_js.SearchCriterias; // массив критериев поиска 
+   var client_j;
+   var product_j;
+   var tip_product_j;
+
+   var Client_i;
+   var Client_id;
+   var Product_i;
+   var Product_id;
+   var Docum_i;
+   var Docum_id;
+   var File_i;
+   var File_id;
+   var Product_arr;
+   var Docum_arr;
+   var File_arr;
+   var Номер_для_поиска;
+   var stroka_poiska;
+   var ext_id;
+   var ext_i;
+   var Поиск_клиента 
+   
+   //Log4JS.log('начало','SearchDoc.log');
+
+   udm:(Поиск := Основной:add_poisk(НД(),НД(),Основной:Тип_поиска:По_коду(js:string(Тип_поиска))[0])); // создали объект поиск 
+
+   if (!!arr) { // массив критериев поиска загоняем в наши строки поиска 
+      for (var  j=0;j < arr.length; j++){
+         // загнали в строки поиска;
+         client_j = arr[j].Client;
+         product_j = arr[j].Product;
+         udm:(Фамилия := НД(),Имя := НД(),Отчество := НД(),Дата_рождения:= НД(),Серия_ДУЛ :=НД(), Номер_ДУЛ := НД(),ID_в_РБС := НД(),Дата_продукта :=НД(),Номер_продукта :=НД(),Тип_продукта :=НД());
+         //if (!!product_j && !!product_j.ProductType) tip_product_j = udm:(ИДОБЪЕКТА(Основной:Тип_продукта:По_коду(js:string(product_j.ProductType))[0])); else  tip_product_j = null ;
+         if (!!client_j) { // фильтры по клиенту
+               if (!!client_j.LastName)    (udm:(Фамилия := ПРОПИСН(js:string(client_j.LastName)))); else udm:(Фамилия := НД());
+               if (!!client_j.FirstName)   (udm:(Имя :=  ПРОПИСН(js:string(client_j.FirstName)))); else udm:(Имя := НД());
+               if (!!client_j.Patronymic)  (udm:(Отчество :=  ПРОПИСН(js:string(client_j.Patronymic)))); else udm:(Отчество := НД());
+               if (!!client_j.BirthDate)   (udm:(Дата_рождения := ДАТАИЗВРЕМ(ДАТАШАБЛОН(js:string(client_j.BirthDate), "yyyy-MM-dd")))); else udm:(Дата_рождения := НД());
+               if (!!client_j.PassportSeries) (udm:(Серия_ДУЛ :=  ПРОПИСН(js:string(client_j.PassportSeries)))); else udm:(Серия_ДУЛ := НД());
+               if (!!client_j.PassportNumber) (udm:(Номер_ДУЛ :=  ПРОПИСН(js:string(client_j.PassportNumber)))); else udm:(Номер_ДУЛ := НД());
+               if (!!client_j.IdRBS) (udm:(ID_в_РБС :=  ПРОПИСН(js:string(client_j.IdRBS)))); else udm:(ID_в_РБС := НД());
+         }
+         if (!!product_j) { // фильтры по продукту
+                  if (!!product_j.ProductRegDate) (udm:(Дата_продукта :=ДАТАИЗВРЕМ(ДАТАШАБЛОН(js:string(product_j.ProductRegDate), "yyyy-MM-dd")))); else udm:(Дата_продукта := НД());
+                  if (!!product_j.ProductRegNumber) (udm:(Номер_продукта := ПРОПИСН(js:string(product_j.ProductRegNumber)))); else udm:(Номер_продукта := НД());
+                  if (!!tip_product_j) (udm:(Тип_продукта := js:string(tip_product_j))); else udm:(Тип_продукта := НД());
+            
+         }
+         
+             stroka_poiska = udm:(Основной:add_or_upd_stroka_poiska((Поиск, Фамилия, Имя, Отчество, Дата_рождения, Серия_ДУЛ, Номер_ДУЛ, ID_в_РБС, НД(),  НД(),  НД(),  НД(),  НД(),  НД(),  НД(),  НД(),  НД(), Дата_продукта, Номер_продукта, Тип_продукта)));
+              
+   
+         
+        if (!!stroka_poiska) { 
+       stroka_poiska.Внешний_ид = arr[j].SearchExtID;   
+        }  
+      }
+   }
+   //Log4JS.log('записали Строки поиска id_for_log ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+    //Log4JS.log('Ид поиска для' +  id_for_log +' id: ' +udm:(ИДОБЪЕКТА(Поиск)) ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+    //arr.SearchExtID
+  
+   udm:(ФИКСИРОВАТЬ()); // коммитим потому что дальше нужен объект уже в БД сохраненный с ИД
+   // Тип Поиск_для_SearchDoc - временный тип , состав поле подогнали под те что нам нужны в ответе сервиса 
+   // ВАЖНО для алгоритма чтобы поисковый возвращал отсортированный результат в следующем порядке :
+   // клиент, продукт, документ, файл, чтобы в одном цикле сложить всю матрешку
+
+   if (SearchArea == 'ea'){
+      
+      var Поиск_клиента = udm:(Основной:Поиск_для_SearchDoc:По_поиску(Поиск)); 
+      
+   } else if (SearchArea == 'both'){
+     //Log4JS.log('получили токен','SearchDoc.log');
+      var Токен = udm:(Интеграция_с_ОСГ:authorization_osg(Основной:Тип_ИС:По_коду('OSG')[0],true));
+      if (Токен !='Ошибка'){
+         
+         var Шаг = udm:(Ч((Основной:get_param_integr(Основной:Тип_ИС:По_коду('OSG')[0],'Макс_число_параметров_поиска_в_запросе'))));                
+         udm:(Строки_поиска_временный :=Основной:Строки_поиска_временный:По_поиску_и_группе(Поиск,'1'));
+         var Строки_для_ОСГ =udm:(Строки_поиска_временный.Запрос_поиска_для_ОСГ);
+         var ФИО = '';
+         var Номера_продуктов = '';
+         for (var  j=0;j < Строки_для_ОСГ.length; j = j+Шаг) {
+                        Номера_продуктов = (Строки_для_ОСГ.slice(j,j+Шаг)).join('[OR]');
+                        udm:(Интеграция_с_ОСГ:search_docs_for_reestr(Основной:Тип_ИС:По_коду('OSG')[0],js:string(Токен),js:string(Номера_продуктов),js:string(Кабинет_реестров),true,НД(),НД(),НД(),false,Поиск,Строки_поиска_временный)); //поиск в кабинете реестров
+                        udm:(ФИКСИРОВАТЬ());
+                        if (udm:(КОЛИЧЕСТВО(Основной:Строки_поиска_временный:По_поиску_ошибка(Поиск))>0)) {
+                           Код_total = '448';
+                           break;
+                        }
+                        //Log4JS.log('j='+j+' Длина'+Строки_с_номерами_продукта.length+'  Шаг='+Шаг,'SearchDoc.log');
+         }     
+         //Log4JS.log('сходили в ОСГ id_for_log ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');   
+      }  
+      
+       if (Код_total != '448')    Поиск_клиента = udm:(СОРТИРОВАТЬ(ОБЪЕДИНИТЬКОЛЛЕКЦИИ([Основной:Поиск_для_SearchDoc:По_поиску_ОСГ(Поиск),Основной:Поиск_для_SearchDoc:По_поиску(Поиск)]),"[VNESHNII_ID,Client, Product,Doc,File]"));  // Client, Product,Doc ,
+       // Поиск_клиента = udm:(Основной:Поиск_для_SearchDoc:Поиск_объединенный(Поиск));
+       //Log4JS.log('Выполнили поисковый  Поиск_объединенный ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+         // Log4JS.log('ПОИСК'  + udm:(ИДОБЪЕКТА(Поиск)),'SearchDoc.log');
+       //  Log4JS.log('Поиск_клиента  сделали' ,'SearchDoc.log');
+   } else  {
+       
+         var Токен = udm:(Интеграция_с_ОСГ:authorization_osg(Основной:Тип_ИС:По_коду('OSG')[0],true));
+         if (Токен !='Ошибка'){
+            
+            var Шаг = udm:(Ч((Основной:get_param_integr(Основной:Тип_ИС:По_коду('OSG')[0],'Макс_число_параметров_поиска_в_запросе'))));                
+            udm:(Строки_поиска_временный :=Основной:Строки_поиска_временный:По_поиску_и_группе(Поиск,'1'));
+            var Строки_для_ОСГ =udm:(Строки_поиска_временный.Запрос_поиска_для_ОСГ);
+         
+            var ФИО = '';
+            var Номера_продуктов = '';
+            for (var  j=0;j < Строки_для_ОСГ.length; j = j+Шаг) {
+                           Номера_продуктов = (Строки_для_ОСГ.slice(j,j+Шаг)).join('[OR]');
+                           udm:(Интеграция_с_ОСГ:search_docs_for_reestr(Основной:Тип_ИС:По_коду('OSG')[0],js:string(Токен),js:string(Номера_продуктов),js:string(Кабинет_реестров),true,НД(),НД(),НД(),false,Поиск,Строки_поиска_временный)); //поиск в кабинете реестров
+                           udm:(ФИКСИРОВАТЬ());
+                           if (udm:(КОЛИЧЕСТВО(Основной:Строки_поиска_временный:По_поиску_ошибка(Поиск))>0)) {
+                              Код_total = '448';
+                              break;
+                           }
+                           //Log4JS.log('j='+j+' Длина'+Строки_с_номерами_продукта.length+'  Шаг='+Шаг,'SearchDoc.log');
+            }   
+            //Log4JS.log('сходили в ОСГ id_for_log ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');     
+               
+         }  
+
+            
+            
+            if (Код_total != '448')  Поиск_клиента = udm:(Основной:Поиск_для_SearchDoc:По_поиску_ОСГ(Поиск)); 
+           // Log4JS.log('Выполнили поисковый  По_поиску_ОСГ ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+   } 
+   
+
+   var Поиск_клиента_i;
+
+   var AnsDoc ={}; // объект ответа 
+   AnsDoc.Status= {};// объект статусов , пока хардкод 
+   if (Код_total != '448') Код_total = '200';
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+   AnsDoc.Status.StatusCode  = parseInt(Код_статуса_total.Код);
+   AnsDoc.Status.StatusText   = String(Код_статуса_total.Название) ;
+
+  // AnsDoc.ItemsCount ={}; // объект статистики , пока хардкод
+  // AnsDoc.ItemsCount.ClientCount =0;
+  // AnsDoc.ItemsCount.DocCount =0;
+  // AnsDoc.ItemsCount.ProductCount =0;
+
+    AnsDoc.SearchRequests = [];                                                        //10:53 20092022 перенос в 164-165
+  //AnsDoc.SearchRequests.SearchResults = {}; // объект с результатами, МАТРЁШКА        //10:53 20092022
+ 
+  // AnsDoc.SearchRequests.SearchResults.Client= []; // массив клиентов                   //10:53 20092022 перенос в 164-165
+ //Log4JS.log('Поиск_клиента.length '  + Поиск_клиента.length,'SearchDoc.log');
+ 
+         
+   if (!!Поиск_клиента) {
+      for (var  i=0;i < Поиск_клиента.length; i++){
+         
+         Поиск_клиента_i = Поиск_клиента[i];
+         
+         if  (!ext_id || ext_id != Поиск_клиента_i.vneshnii_id) {
+            ext_id = Поиск_клиента_i.vneshnii_id;
+            var searchrequestitems = {};
+            AnsDoc.SearchRequests.push(searchrequestitems);
+            searchrequestitems.SearchExtID = String(ext_id);
+            searchrequestitems.SearchResults = [];
+            
+         }
+         
+         
+         if (!Client_id || Client_id != Поиск_клиента_i.Client) { // если перескочили на нового клиента, создаем объект 
+            Client_ik={};
+            Client_ik.Client ={};
+            Client_i = Client_ik.Client;
+      //    AnsDoc.ItemsCount.ClientCount = AnsDoc.ItemsCount.ClientCount +1;
+            Client_id = Поиск_клиента_i.Client;
+            if (!!Поиск_клиента_i.BirthDate)    Client_i.BirthDate =   String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd").format(Поиск_клиента_i.BirthDate)); 
+            if (!!Поиск_клиента_i.FirstName)        Client_i.FirstName = String(Поиск_клиента_i.FirstName);
+            if (!!Поиск_клиента_i.LastName)         Client_i.LastName = String(Поиск_клиента_i.LastName);
+            if (!!Поиск_клиента_i.PassportNumber)   Client_i.PassportNumber = String(Поиск_клиента_i.PassportNumber);
+            if (!!Поиск_клиента_i.PassportSeries)   Client_i.PassportSeries = String(Поиск_клиента_i.PassportSeries);
+            if (!!Поиск_клиента_i.Patronymic)       Client_i.Patronymic = String(Поиск_клиента_i.Patronymic);
+            if (!!Поиск_клиента_i.IdRBS)            Client_i.IdRBS = String(Поиск_клиента_i.IdRBS);  
+            if (!!Поиск_клиента_i.SearchArea)       Client_i.SearchArea =String(Поиск_клиента_i.SearchArea);
+         // if (!!Поиск_клиента_i.SearchResultId)   Client_i.SearchResultId =String(Поиск_клиента_i.SearchResultId);
+            Client_i.ProductCount = 0;
+         // Client_i.Products = {};
+         //Client_i.Products.Product =[];
+            Client_i.Products =[];
+            Product_arr = Client_i.Products;  //переопределяем массив продуктов
+      
+            searchrequestitems.SearchResults.push(Client_ik);  // добавляем клиента в массив 
+         }
+         if (!Product_id || Product_id != Поиск_клиента_i.Product) { // если перескочили на новый продукт , создаем объект 
+            Product_i={};
+         //   AnsDoc.ItemsCount.ProductCount =AnsDoc.ItemsCount.ProductCount +1;
+            Product_id = Поиск_клиента_i.Product;
+            
+            if (!!Поиск_клиента_i.ProductType)          Product_i.ProductType = String(Поиск_клиента_i.ProductType);
+            if (!!Поиск_клиента_i.ProductRegNumber)     Product_i.ProductRegNumber = String(Поиск_клиента_i.ProductRegNumber);
+            if (!!Поиск_клиента_i.ProductRegDate)       Product_i.ProductRegDate = String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd").format(Поиск_клиента_i.ProductRegDate));
+            //if (!!Поиск_клиента_i.SearchResultId)       Product_i.SearchResultId = String(Поиск_клиента_i.SearchResultId);
+            //Product_i.Documents = {};
+            //Product_i.Documents.Document =[];
+            Product_i.DocumentCount = 0;
+            Product_i.Documents =[];
+            Docum_arr = Product_i.Documents; //переопределяем массив документов
+            if (!!Поиск_клиента_i.ProductRegNumber)  Product_arr.push(Product_i); // добавляем продукт в массив 
+            Client_i.ProductCount =Client_i.ProductCount+1;
+         }
+         if (!Docum_id || Docum_id != Поиск_клиента_i.Doc) { // если перескочили на новый документ , создаем объект
+            Docum_i={};
+            Docum_id = Поиск_клиента_i.Doc;
+         //  AnsDoc.ItemsCount.DocCount =AnsDoc.ItemsCount.DocCount +1;
+            if (!!Поиск_клиента_i.DocumentType)      Docum_i.DocumentType = String(Поиск_клиента_i.DocumentType);
+            if (!!Поиск_клиента_i.DocumentRegNumber) Docum_i.DocumentRegNumber = String(Поиск_клиента_i.DocumentRegNumber);
+            if (!!Поиск_клиента_i.SourceIS) Docum_i.SourceIS = String(Поиск_клиента_i.SourceIS);
+            if (!!Поиск_клиента_i.DocumentRegDate)   Docum_i.DocumentRegDate = String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd").format(Поиск_клиента_i.DocumentRegDate));
+            if (!!Поиск_клиента_i.SearchResultId)    Docum_i.SearchResultId = String(Поиск_клиента_i.SearchResultId); 
+            if (!!Поиск_клиента_i.OSGDocId)          Docum_i.OSGDocId = String(Поиск_клиента_i.OSGDocId); 
+            if (!!Поиск_клиента_i.OSGCabinetID)      Docum_i.OSGCabinetID = String(Поиск_клиента_i.OSGCabinetID); 
+            Product_i.DocumentCount = Product_i.DocumentCount +1;
+            
+            //Docum_i.Files = {};
+            //Docum_i.Files.File =[];
+            Docum_i.Files = [];
+            File_arr = Docum_i.Files; //переопределяем массив файлов
+            Docum_i.FileCount = 0;         
+
+            
+
+            if (!!Поиск_клиента_i.DocumentRegNumber)  Docum_arr.push(Docum_i); // добавляем документ в массив 
+         }
+         
+         File_i={}; // файл создаем всегда 
+         
+         if (!!Поиск_клиента_i.StorageGUID) 
+            File_i.StorageGUID = String(Поиск_клиента_i.StorageGUID);
+         if (!!Поиск_клиента_i.FileName)   
+            File_i.FileName = String(Поиск_клиента_i.FileName);
+         if (!!Поиск_клиента_i.FileSize)   
+            File_i.FileSize = (Поиск_клиента_i.FileSize);
+         if (!!Поиск_клиента_i.PageNumber) 
+            File_i.PageNumber = (Поиск_клиента_i.PageNumber);
+         if (!!Поиск_клиента_i.MIMEType)   
+            File_i.MIMEType = String(Поиск_клиента_i.MIMEType);
+         if (!!Поиск_клиента_i.FileSize) {  
+            File_arr.push(File_i); // добавляем файл в массив    
+            Docum_i.FileCount = Docum_i.FileCount +1;    
+         }
+      }
+   }
+   // Log4JS.log('Создали это все  '  ,'SearchDoc.log');
+   udm:(AnsDoc_str := js:string( JSON.stringify(AnsDoc))); // Собираем объект в json  строку
+   //Log4JS.log('Конец '  ,'SearchDoc.log');
+}
+
+udm:(RESTRESPONSESTATUS(js:целое(AnsDoc.Status.StatusCode)));
+Log4JS.log('окончание id_for_log ' +  id_for_log ,'SearchDoc_' + udm:(СЕГОДНЯ()) + '.log');
+return udm:(AnsDoc_str);
+ 

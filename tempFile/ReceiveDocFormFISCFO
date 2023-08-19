@@ -1,0 +1,516 @@
+//var Ans ={};
+//1.Начальные статусы: 
+var StatusText_total ='ОК';
+var StatusCode_total= '200';  
+//??var Код_статуса_total;
+var StatusCode ='200';
+var Код_total ='200';
+var Error = {}; //массив ошибок для ответа AnsStoreDoc
+Error.Clients =[];
+var Error_obj ={}; //объект для сбора информации об одной ошибке
+var Ошибка_клиент=[]; //название полей, содержаших ошибку или не заполненных
+var Ошибка_клиент_цикл = false; //индикатор ошибки в документе (была ли найдена хотя бы одна ошибка за цикл)
+var klient_error = false; //промежуточная переменняа для создания объекта клиент ошибка //для сборки json с ответами об ошибке
+var Ошибка_продукт=[];//название полей, содержаших ошибку или не заполненных
+var Ошибка_продукт_цикл = false; //индикатор ошибки в документе (была ли найдена хотя бы одна ошибка за цикл)
+var product_error= false; //промежуточная переменняа для создания объекта продукт ошибка //для сборки json с ответами об ошибке
+var Ошибка_документ = []; //название полей, содержаших ошибку или не заполненных
+var Ошибка_документ_цикл = false; //индикатор ошибки в документе (была ли найдена хотя бы одна ошибка за цикл)
+var document_error= false; //промежуточная переменняа для создания объекта продукт ошибка //для сборки json с ответами об ошибке
+var Ошибка_файл = []; //название полей, содержаших ошибку или не заполненных
+var Ошибка_файл_цикл = false; //индикатор ошибки в файле (была ли найдена хотя бы одна ошибка за цикл)
+var id_for_log = udm:(НАЧАТЬСТАТИСТИКУПОСТРАТЕГИЯМ()); //id запущенной функции для логирования
+var logname = 'ReceiveDocFromFISCFO_' + udm:(СЕГОДНЯ()) + '.log'; 
+var saved_docs = [];
+var saved_prods = [];
+Log4JS.log('Start id_for_log ' +  id_for_log ,logname);
+Log4JS.log('Начало обработки запроса: '+udm:(СЕЙЧАС()),logname);
+//2.Проверяем полученный json
+Log4JS.log(udm:(ReqStoreDoc),logname);
+try {
+   var ReqStoreDoc_js= JSON.parse(udm:(ReqStoreDoc)); // распарсили строку в объект
+ } catch(e){
+     StatusText_total = 'Невалидный json запроса';
+     Код_total = '500';
+     Log4JS.log('500',logname);
+} 
+if (udm:(ДЛИНСТР(ReqStoreDoc))<1){
+     StatusText_total = 'Невалидный json запроса';
+     Код_total = '500';
+     Log4JS.log('500',logname);
+}
+//4.Объявляем переменные
+var accessToken;
+var token_valid;
+ 
+//Log4JS.log('Код_total ' +  Код_total,logname);
+//5.Если нет ошибки, приступаем к обработке json
+if (Код_total!='500') { 
+
+     //5.1 Проверка токена (наличие в заголовке Authorization, затем на права )
+     try {
+     accessToken = udm:(RESTHEADERVALUES("Authorization"));
+     //Log4JS.log('accessToken ' +  accessToken,logname); //логируем приходящий токен))//это совсем не обязательно
+     }catch(e){
+     token_valid = 'Unauthorized';
+     };
+
+     if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+     try { //проверка токена на права и создание объекта токена
+               token_obj = JSON.parse(udm:(Сервисный:tokenAuthenticationKeycloak_obj(js:string((String(accessToken))))));
+               token_valid = token_obj.res;
+          } catch(e){
+               token_valid = 'Unauthorized';
+          }
+     } else {
+     token_valid = 'Unauthorized'; 
+     }
+     
+     //  token_valid ="Ok"; // для проверки работы функции без авторизации, т.е. всегда валидный токен
+     token_valid ="Ok";
+
+     if (token_valid !="Ok"){ //Если токен просрочен или не авторизован, записываем код и не проверяем запрос
+          Код_total = (token_valid =="Token expired")?'402':'401';
+          Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+          StatusCode_total = parseInt(Код_статуса_total.Код);
+          StatusText_total = String(Код_статуса_total.Название) ;
+          //Log4JS.log('Зашли в 5.1 строка 62 ',logname);
+     } else { 
+               //5.2 Начинаем обработку json 
+     
+     //Здесь было бы правильно проверить Разрешения_ИС и при необходимости установить значение для Тип_ИС, а также любых дополнительных атрибутов
+     
+     //Проверяем наличие обязательных полей и передаём значения в атрибуты
+     //Log4JS.log('ReqStoreDoc_js '+(!!ReqStoreDoc_js)+'  ReqStoreDoc.Clients   '+(!!ReqStoreDoc_js.ReqStoreDoc.Clients)+'   ReqStoreDoc_js.ReqStoreDoc.Clients.length '+ReqStoreDoc_js.ReqStoreDoc.Clients.length,logname);
+     try {
+          //Собираем массив Ид_в_РБС и ДУЛ для похода с ними в HDDWH
+          if (!!ReqStoreDoc_js && !!ReqStoreDoc_js.ReqStoreDoc.Clients && ReqStoreDoc_js.ReqStoreDoc.Clients.length>0) {
+               var Список_ИД_HD =[];
+               var Список_ДУЛ_HD =[];
+               for (var j=0;j<ReqStoreDoc_js.ReqStoreDoc.Clients.length;j++) {
+               var client_j = ReqStoreDoc_js.ReqStoreDoc.Clients[j];
+               if (!!client_j.RBSId)    {Список_ИД_HD.push(client_j.RBSId);}
+               else {
+                    if (!!client_j.PassportSeries && !!client_j.PassportNumber) {
+                         Список_ДУЛ_HD.push(client_j.PassportSeries+' '+client_j.PassportNumber);
+                    }
+               }
+
+               }
+               //Ищем в HDDWH по коллекции 
+               udm:(Клиенты_HD := HDDWH_bind:VW_HD_CLIENT4FIS:По_ид_в_РБС_КОЛ(js:string(Список_ИД_HD.join(','))));
+               Log4JS.log('udm:(Клиенты_HD) 1  '+(udm:(Клиенты_HD)).length,logname);
+
+               //проверяем всех ли нашли, и если не нашли, то добаввляем в коллекцию ДУЛ для поиска
+               for (var j=0;j<ReqStoreDoc_js.ReqStoreDoc.Clients.length;j++) {
+               var client_j = ReqStoreDoc_js.ReqStoreDoc.Clients[j];
+
+               if (!udm:(Клиенты_HD[SUBJ_ID == js:string(client_j.RBSId)]))    {Список_ДУЛ_HD.push(client_j.PassportSeries+' '+client_j.PassportNumber);}
+               
+
+               }
+               if (Список_ДУЛ_HD.length>0) {
+               udm:(Клиенты_HD := ДОБАВИТЬ(Клиенты_HD, HDDWH_bind:VW_HD_CLIENT4FIS:По_ДУЛ_КОЛ(js:string(Список_ДУЛ_HD.join(',')))));
+               }
+               Log4JS.log('udm:(Клиенты_HD) 2  '+(udm:(Клиенты_HD)).length,logname);
+          
+          }
+
+
+
+     if (!!ReqStoreDoc_js && !!ReqStoreDoc_js.ReqStoreDoc.Clients && ReqStoreDoc_js.ReqStoreDoc.Clients.length>0) {
+          
+          for (var j=0;j<ReqStoreDoc_js.ReqStoreDoc.Clients.length;j++) {
+               Ошибка_клиент_цикл = false;
+               klient_error=false;
+               var client = false;
+               var client_j = ReqStoreDoc_js.ReqStoreDoc.Clients[j];
+               Log4JS.log('Зашли в цикл КЛИЕНТ ',logname);
+               //Обязательные поля
+               if (!client_j.ClientId || client_j.ClientId==="")                { Ошибка_клиент.push('ClientId'); }        else {udm:(ClientId:=js:string(client_j.ClientId));}
+               if (!client_j.FirstName || client_j.FirstName==="")              { Ошибка_клиент.push('FirstName'); }       else {udm:(FirstName :=js:string(client_j.ClientId));}
+               if (!client_j.Patronymic && !(client_j.Patronymic === "") && !(client_j.Patronymic === null))             { Ошибка_клиент.push('Patronymic');}       else {udm:(Patronymic :=js:string(client_j.Patronymic));}
+               if (!client_j.LastName || client_j.LastName==="")                { Ошибка_клиент.push('LastName'); }        else {udm:(LastName :=js:string(client_j.LastName));}
+               if (!client_j.BirthDate && !(client_j.BirthDate === "") && !(client_j.BirthDate === null))               { Ошибка_клиент.push('BirthDate'); }       else {udm:(BirthDate :=js:date(client_j.BirthDate));}
+               if (!client_j.PassportSeries || client_j.PassportSeries==="" || !(/^[0-9]{2} [0-9]{2}$/).test(client_j.PassportSeries))    { Ошибка_клиент.push('PassportSeries'); }  else {udm:(PassportSeries :=js:string(client_j.PassportSeries));}
+               if (!client_j.PassportNumber || client_j.PassportNumber==="")    { Ошибка_клиент.push('PassportNumber');  } else {udm:(PassportNumber :=js:string(client_j.PassportNumber));}
+               //Необязательные поля
+               if (!client_j.RBSId)            { udm:(RBSId := НД()); } else {udm:(RBSId :=js:string(client_j.RBSId));}
+                               
+               //Если нашли ошибку, то записываем в массив ошибок
+                    if (Ошибка_клиент.length>0) {
+                    var Ошибка_клиент_str = Ошибка_клиент.join(', '); 
+                    var Error_client_j = {};
+                    Error_client_j.ClientId = client_j.ClientId;
+                    Error_client_j.ErrorMsg = 'Отсутствует или не заполнено обязательное поле: '+Ошибка_клиент_str;
+                    Error.Clients.push(Error_client_j);
+                    Ошибка_клиент = []; 
+                    Ошибка_клиент_цикл = true;
+                    klient_error = true;
+                    }
+
+               if (!!client_j.Products && client_j.Products.length>0) {
+                    Ошибка_продукт_цикл = false;
+                    product_error = false;
+                    var product = false;
+                    for (var k=0;k<client_j.Products.length;k++) {
+                         var product_k = client_j.Products[k];
+                         Log4JS.log('Зашли в цикл ПРОДУКТ ',logname);
+                         //Обязательные поля
+                         if (!product_k.ProductId || product_k.ProductId==="")                      { Ошибка_продукт.push('ProductId'); }          else  {udm:(ProductId:=js:string(product_k.ProductId));}
+                         if (!product_k.ProductType || product_k.ProductType==="")                  { Ошибка_продукт.push('ProductType'); }        else  {udm:(ProductType:=js:string(product_k.ProductType));}
+                         if (!product_k.ProductKind || product_k.ProductKind==="")                  { Ошибка_продукт.push('ProductKind'); }        else  {udm:(ProductKind:=js:string(product_k.ProductKind));}
+                         if (!product_k.ProductRegDate && !(product_k.ProductRegDate === "") && !(product_k.ProductRegDate === null))             { Ошибка_продукт.push('ProductRegDate'); }     else  {udm:(ProductRegDate:=js:date(product_k.ProductRegDate));}
+                         if (!product_k.ProductRegNumber && !(product_k.ProductRegNumber === "") && !(product_k.ProductRegNumber=== null))         { Ошибка_продукт.push('ProductRegNumber'); }   else  {udm:(ProductRegNumber:=js:string(product_k.ProductRegNumber));}
+                         if (!product_k.ProductTypeSigning || product_k.ProductTypeSigning==="")    { Ошибка_продукт.push('ProductTypeSigning'); } else  {udm:(ProductTypeSigning:=js:string(product_k.ProductTypeSigning));}
+                         
+                         //Если нашли ошибку, то записываем в массив ошибок
+                              if (Ошибка_продукт.length>0) {
+                              var Ошибка_продукт_str = Ошибка_продукт.join(', ');
+                              //Если не было создано объекта ошибка_клиента, то создаём; индикатор klient_error меняем true, чтобы больше не создавать такой объект
+                              if (!klient_error) {                                  
+                                  var Error_client_j = {};
+                                  Error_client_j.ClientId = client_j.ClientId;
+                                  Error.Clients.push(Error_client_j);
+                                  Log4JS.log('КЛИЕНТ создан в строке 140 '+client_j.ClientId,logname);
+                                  klient_error=true;
+                              }
+                              if (!Error_client_j.Products) {Error_client_j.Products = [];}
+                              var Error_product_k = {}; 
+                              Error_product_k.ProductId = product_k.ProductId;
+                              Error_product_k.ErrorMsg = 'Отсутствует или не заполнено обязательное поле: '+Ошибка_продукт_str;
+                              Error_client_j.Products.push(Error_product_k);
+                              Ошибка_продукт = []; 
+                              Ошибка_продукт_цикл = true;
+                              product_error = true;
+                              }
+                         Log4JS.log('!!product_k.Documents = '+!!product_k.Documents+' product_k.Documents.length = '+product_k.Documents.length,logname);
+                         if (!!product_k.Documents && product_k.Documents.length>0) {
+                              for (var m=0;m<product_k.Documents.length;m++) {
+                                   Ошибка_документ_цикл = false;
+                                   document_error= false;
+                                   var document;
+                                   var document_m = product_k.Documents[m];
+                                   Log4JS.log('Зашли в цикл Документ: приступили к проверке полей',logname);
+                                   //Обязательные поля
+                                   if (!document_m.DocumentId || document_m.DocumentId==="")                                                     { Ошибка_документ.push('DocumentId'); }            else  {udm:(DocumentId:=js:string(document_m.DocumentId));}
+                                   if (!document_m.DocumentType || document_m.DocumentType==="")                                                 { Ошибка_документ.push('DocumentType');  }         else  {udm:(DocumentType:=js:string(document_m.DocumentType));}
+                                   if (!document_m.DocumentKind || document_m.DocumentKind==="")                                                 { Ошибка_документ.push('DocumentKind');  }         else  {udm:(DocumentKind:=js:string(document_m.DocumentKind));}
+                                   if (!document_m.DocumentTypeSigning && !(document_m.DocumentTypeSigning === "") && !(document_m.DocumentTypeSigning === null))                                    { Ошибка_документ.push('DocumentTypeSigning');  }  else  {udm:(DocumentTypeSigning:=js:string(document_m.DocumentTypeSigning));}
+                                   if (document_m.DocumentChecked==="" ||  !(document_m.DocumentChecked>-1 && document_m.DocumentChecked<3)  )   { Ошибка_документ.push('DocumentChecked');  }      else  {udm:(DocumentChecked:=js:целое(document_m.DocumentChecked));}
+                                   if (document_m.DocumentColor==="" ||  !(document_m.DocumentColor>-1 && document_m.DocumentColor<3))           { Ошибка_документ.push('DocumentColor');  }        else  {udm:(DocumentColor:=js:целое(document_m.DocumentColor));}
+                                   //Необязательные поля
+                                   if (!!document_m.DocumentRegDate)       {udm:(DocumentRegDate:=js:date(document_m.DocumentRegDate));}
+                                   if (!!document_m.DocumentRegNumber)     {udm:(DocumentRegNumber:=js:string(document_m.DocumentRegNumber));}
+                                   Log4JS.log('Зашли в цикл Документ: закончили проверку, кроме DO',logname);                                  
+                                   if (!!document_m.DocumentOwner && !document_m.DocumentId==="") {
+                                        var docown = document_m.DocumentOwner;
+                                        if (!docown.ClientId || docown.ClientId==="")               { Ошибка_документ.push('DocumentOwner_ClientId');  }        else  {udm:(DO_ClientId:=js:string(docown.ClientId));}
+                                        if (!docown.FirstName || docown.FirstName==="")             { Ошибка_документ.push('DocumentOwner_FirstName');  }       else  {udm:(DO_FirstName:=js:string(docown.FirstName));}
+                                        if (!docown.Patronymic && !(docown.Patronymic === "") && !(docown.Patronymic === null))            { Ошибка_документ.push('DocumentOwner_Patronymic');  }      else  {udm:(DO_Patronymic:=js:string(docown.Patronymic));}
+                                        if (!docown.LastName || docown.LastName==="")               { Ошибка_документ.push('DocumentOwner_LastName');  }        else  {udm:(DO_LastName:=js:string(docown.LastName));}
+                                        if (!docown.BirthDate || docown.BirthDate==="")             { Ошибка_документ.push('DocumentOwner_BirthDate');  }       else  {udm:(DO_BirthDate:=js:date(docown.BirthDate));}
+                                        if (!docown.PassportSeries || docown.PassportSeries==="")   { Ошибка_документ.push('DocumentOwner_PassportSeries');  }  else  {udm:(DO_PassportSeries:=js:string(docown.PassportSeries));}
+                                        if (!docown.PassportNumber || docown.PassportNumber==="")   { Ошибка_документ.push('DocumentOwner_PassportNumber');  }  else  {udm:(DO_PassportNumber:=js:string(docown.PassportNumber));}
+                                        if (!docown.RBSId && !(docown.RBSId === "") && !(docown.RBSId === null))                      { Ошибка_документ.push('DocumentOwner_RBSId');  }           else  {udm:(DO_RBSId:=js:string(docown.RBSId));}
+                                   };
+                                   Log4JS.log('Зашли в цикл Документ: проверили DO',logname);
+                                   //Если нашли ошибку документа, то записываем в массив ошибок
+                                   Log4JS.log('Количество ошибок в Документе '+Ошибка_документ.length,logname);
+                                   if (Ошибка_документ.length>0) {
+                                        var Ошибка_документ_str = Ошибка_документ.join(', '); 
+                                        //Если не было создано объекта ошибка_клиента, то создаём; индикатор klient_error меняем true, чтобы больше не создавать такой объект 
+                                        if (!klient_error)  {
+                                        var Error_client_j = {};
+                                        Error_client_j.ClientId = client_j.ClientId;
+                                        Error.Clients.push(Error_client_j);
+                                        klient_error = true;
+                                        }
+                                        //Если не было создано объекта ошибка_клиента, то создаём; индикатор product_error меняем true, чтобы больше не создавать такой объект 
+                                        if (!product_error) {
+                                        if (!Error_client_j.Products) {Error_client_j.Products = [];}     
+                                        var Error_product_k = {};
+                                        Error_product_k.ProductId = product_k.ProductId;
+                                        Error_client_j.Products.push(Error_product_k);
+                                        product_error = true;
+                                        }
+                                        if (!Error_product_k.Documents) {Error_product_k.Documents = [];}
+                                        var Error_document_m = {}; 
+                                        Error_document_m.DocumentId = document_m.DocumentId;
+                                        Error_document_m.ErrorMsg = 'Отсутствует или не заполнено обязательное поле: '+Ошибка_документ_str;
+                                        Error_product_k.Documents.push(Error_document_m);
+                                        Ошибка_документ = []; 
+                                        Ошибка_документ_цикл = true;
+                                        document_error= true;
+                                   }
+                                   Log4JS.log('Зашли в цикл Документе: Приступаем к проверке файлов, их количество  '+document_m.Files.length,logname);
+                                   Ошибка_файл_цикл = false;
+                                   if (!!document_m.Files && document_m.Files.length>0) {
+                                        for (var n=0;n<document_m.Files.length;n++) {
+                                             var file_n = document_m.Files[n];
+                                             Log4JS.log('Зашли в цикл Файл ',logname);
+                                             //Обязательные поля
+                                             
+                                             if (!!file_n.StorageGUID && !(file_n.StorageGUID==="")) {
+                                                  } 
+                                             else if (!!file_n.File && !(file_n.File==="")) {
+                                                  }                                                   
+                                                  else {
+                                             Ошибка_файл.push('StorageGUID/File');     
+                                             }
+                                             if (!!file_n.File && !!file_n.StorageGUID) {Ошибка_файл.push('Должно быть только одно из полей StorageGUID/File');}
+
+                                             if (!file_n.FileId || file_n.FileId==="")           { Ошибка_файл.push('FileId'); }
+                                             if (!file_n.FileName && !(file_n.FileName === "") && !(file_n.FileName === null))        { Ошибка_файл.push('FileName'); }// else  {udm:(FileName:=js:string(file_n.FileName));} 
+                                             if ((!file_n.FileSize || !(/^[+-]?[0-9]+$/).test(file_n.FileSize)) /*удобная проверка тут regex101.com*/ &&  !(file_n.FileSize === "") && !(file_n.FileSize === null) && !(file_n.FileSize === 0))                              { Ошибка_файл.push('FileSize'); }// else  {udm:(FileSize:=js:целое(file_n.FileSize));}
+                                             if (!file_n.FileType && !(file_n.FileType === null) && !(file_n.FileType === "") )       { Ошибка_файл.push('FileType2'); } 
+                                             if (!file_n.MIMEType && !(file_n.MIMEType === null) && !(file_n.MIMEType === ""))        { Ошибка_файл.push('MIMEType'); }// else  {udm:(MIMEType:=js:string(file_n.MIMEType));}
+                                             if (!file_n.MD5 && !(file_n.MD5 === null) && !(file_n.MD5 === ""))                  { Ошибка_файл.push('MD5'); }     // else  {udm:(MD5:=js:string(file_n.MD5));}
+                                             
+                                             //Если нашли ошибку файла, то записываем в массив ошибок
+                                             if (Ошибка_файл.length>0) {
+                                             var Ошибка_файл_str = Ошибка_файл.join(', ');  
+                                             //Если не было создано объекта ошибка_клиента, то создаём; индикатор klient_error меняем true, чтобы больше не создавать такой объект 
+                                             if (!klient_error){ 
+                                             var Error_client_j = {};                                         
+                                             Error_client_j.ClientId = client_j.ClientId;                                            
+                                             Error.Clients.push(Error_client_j);
+                                             klient_error = true;
+                                             }
+                                             //Если не было создано объекта ошибка_клиента, то создаём; индикатор product_error меняем true, чтобы больше не создавать такой объект 
+                                             if (!product_error) {
+                                             if (!Error_client_j.Products) {Error_client_j.Products = [];}
+                                             var Error_product_k = {};
+                                             Error_product_k.ProductId = product_k.ProductId;
+                                             Error_client_j.Products.push(Error_product_k);
+                                             product_error = true;
+                                             }
+                                             //Если не было создано объекта ошибка_клиента, то создаём; индикатор document_error меняем true, чтобы больше не создавать такой объект 
+                                             if (!document_error) {
+                                             if (!Error_product_k.Documents) {Error_product_k.Documents = [];} 
+                                             var Error_document_m = {};
+                                             Error_document_m.DocumentId = document_m.DocumentId;
+                                             Error_product_k.Documents.push(Error_document_m);
+                                             document_error= true;
+                                             }
+                                             
+                                             if (!Error_document_m.Files) {Error_document_m.Files = [];}
+                                             var Error_file_n = {}; 
+                                             Error_file_n.FileId = file_n.FileId;
+                                             Error_file_n.ErrorMsg = 'Отсутствует или не заполнено обязательное поле: '+Ошибка_файл_str;
+                                             Error_document_m.Files.push(Error_file_n);
+                                             Ошибка_файл = []; 
+                                             Ошибка_файл_цикл = true;   
+                                             }
+                                               
+
+                                        }
+                                             
+                                        //Если нет ошибок в цикле файл, т.е. проверки обязательности и заполненности полей, документ, продукт, клиент, то запускаем второй цикл исключительно для сохранения файлов
+                                        //Log4JS.log('Ошибка_файл_цикл = '+!Ошибка_файл_цикл+'; Ошибка_документ_цикл = '+!Ошибка_документ_цикл,logname);
+                                        if (!Ошибка_файл_цикл && !Ошибка_документ_цикл && !Ошибка_продукт_цикл && !Ошибка_клиент_цикл) {
+                                             
+                                             
+                                             
+                                             var file;
+                                                  for (var n=0;n<document_m.Files.length;n++) {
+                                                       var file_n = document_m.Files[n];
+                                                       if (!!file_n.StorageGUID && !(file_n.StorageGUID==="")) {
+                                                          udm:(StorageGUID:=js:string(file_n.StorageGUID));
+                                                          } 
+                                                          else if (!file_n.StorageGUID && !!(file_n.StorageGUID==="") && !!file_n.File && !(file_n.File==="")) {
+                                                          udm:(File:=js:string(file_n.File));}
+                                                       if (!!file_n.FileName)   {udm:(FileName:=js:string(file_n.FileName));}
+                                                       if (!!file_n.FileSize)   {udm:(FileSize:=js:целое(file_n.FileSize));}
+                                                       if (!!file_n.FileType)   {udm:(FileType:=js:string(file_n.FileType));}
+                                                       if (!!file_n.MIMEType)   {udm:(MIMEType:=js:string(file_n.MIMEType));}
+                                                       if (!!file_n.MD5)        {udm:(MD5:=js:string(file_n.MD5));}
+                                                       
+                                                       //Здесь уже можно создать всю матрешку. Файлы в создаём в цикле для каждого файла, Клиента, Продукт, Версию и документ 1 раз
+                                                       Log4JS.log('Проверяем, что сохраняем только 1 клиента (должно быть равно количеству файлов раза), !client == '+!client,logname);
+                                                       if (!client) {
+                                                            Log4JS.log('Зашли в созадние клиента, должно быть 2 раза. Клиент №  '+client_j.ClientId,logname);
+                                                            client=true; 
+                                                       var client_HD;
+                                                       Log4JS.log('Обработка запроса данных клиента в HDDWH начало: '+udm:(СЕЙЧАС()),logname);
+                                                       //Поиск клиента в HDDWH по ИД в РБС
+                                                       client_HD = udm:(HDDWH_bind:VW_HD_CLIENT4FIS:По_ид_в_РБС(RBSId)[0]); 
+                                                       Log4JS.log('Обработка запроса данных клиента в HDDWH закончили поиск по ИД в РБС: '+udm:(СЕЙЧАС()),logname);
+                                                       //Если не нашли клиента в HDDWH по ИД в РБС, то ищём его по реквизитам ДУЛ, т.е. по паспорту
+                                                       //if (!client_HD) {client_HD = udm:(HDDWH_bind:VW_HD_CLIENT4FIS:По_паспорту(PassportSeries,PassportNumber)[0]); }  
+                                                       Log4JS.log('Обработка запроса данных клиента в HDDWH закончили поиск по ДУЛ: '+udm:(СЕЙЧАС()),logname);
+                                                       //Если нашли клиента в HDDWH, то записываем нужные нам атрибуты для обновления и вызываем функцию обновления клиента, которая ищет существующего в ЭА клиента и обновляет, либо создаёт нового
+                                                       if (!!client_HD) {
+                                                            if (!!client_HD.LASTNAME)          udm:(LastName       := js:string(client_HD.LASTNAME));             else udm:(LastName := НД());
+                                                            if (!!client_HD.FIRSTNAME)         udm:(FirstName           := js:string(client_HD.FIRSTNAME));            else udm:(FirstName := НД());
+                                                            if (!!client_HD.MIDDLENAME)        udm:(Patronymic      := js:string(client_HD.MIDDLENAME));           else udm:(Patronymic := НД());
+                                                            if (!!client_HD.SERNUM && ((String(client_HD.SERNUM)).length >10))          {
+                                                                 udm:(PassportNumber   := ПРАВЗНАКИ(js:string(client_HD.SERNUM),6));     
+                                                                 udm:(PassportSeries   := ЛЕВЗНАКИ(js:string(client_HD.SERNUM),5));     
+                                                            } else {
+                                                                 udm:(PassportNumber := НД());
+                                                                 udm:(PassportSeries := НД()); 
+                                                            }
+                                                            if (!!client_HD.BIRTHDATE)         udm:(BirthDate := ДАТАИЗВРЕМ(js:datetime(client_HD.BIRTHDATE)));              else udm:(BirthDate := НД());
+                                                             
+                                                            
+                                                            //client = udm:(Основной:add_or_upd_client(RBSId, LastName, FirstName, Patronymic, PassportSeries, PassportNumber, BirthDate, НД(), НД(), НД(), НД() /*здесь! Тип_ИС*/, НД(), НД(), false, НД(), Администрирование:Пользователь:По_логину_все('fiscfo')[0]));
+                                                            //udm:(фиксировать());
+                                                        //Если не удалось найти клиента в HDDWH ни по ИД в РБС, ни по номеру ДУЛ, то ищем уклиента "в лоб" по паспорту в ЭА.Вызов функции в этом случае не требуется, т.к. у нас нет данных для обновления клиента                             
+                                                       } else {
+                                                            //client = udm:(Основной:Клиент_фл:По_паспорту(PassportSeries,PassportNumber));
+                                                       }
+                                                       //Если не нашли клиента ни в HD, ни в ЭА, то создаём нового клиента, по данным из КФО
+                                                       if (!client_HD && !client) {
+                                                            //client = udm:(Основной:add_or_upd_client(RBSId, LastName, FirstName, Patronymic, PassportSeries, PassportNumber, BirthDate, НД(), НД(), НД(), НД() /*здесь! Тип_ИС*/, НД(), НД(), false, НД(), Администрирование:Пользователь:По_логину_все('fiscfo')[0]));
+                                                       } 
+
+                                                       }
+                                                       
+                                                       if (!product) {
+                                                            product=true;
+                                                            Log4JS.log('Зашли в созадние продукта, должно быть равно количеству продуктов. Продукт №  '+product_k.ProductId,logname);
+                                                            var product_HD;
+                                                            if (udm:(ProductType) == 'Кредитный_договор' || udm:(ProductType) == 'Депозитный_договор'){
+                                                                 product_HD = udm:(HDDWH_bind:VW_HD_DOG4FIS:По_номеру(ProductRegNumber)[0]);
+                                                                 if (!!product_HD) {
+                                                                      if (!!product_HD.OPEN_DT) {udm:(ProductRegDate:= js:date(product_HD.OPEN_DT));} else {udm:(ProductRegDate:= НД());}
+                                                                      if (!!product_HD.TYP_KR){ 
+                                                                           if (product_HD.TYP_KR =='DEP')
+                                                                           udm:(Тип_продукта := Основной:Тип_продукта:По_коду('Депозитный_договор')[0]);
+                                                                           else 
+                                                                           udm:(Тип_продукта := Основной:Тип_продукта:По_коду('Кредитный_договор')[0]);
+                                                                           } else  udm:(Тип_продукта := НД());
+                                                                      if (!product_HD.PRODUCT_NM_LONG) {udm:(ProductKind := js:string(doc_HD.PRODUCT_NM_LONG));} else {udm:(ProductKind := НД());}
+                                                                      // product = udm:(Основной:add_or_upd_product(Тип_продукта, Номер, Дата_продукта, НД(), js:Основной:Клиент_фл(client_fis), НД(), Вид_продукта, НД(), Администрирование:Пользователь:По_логину_все('xECM')[0]));
+                                                                      //udm:(фиксировать());
+                                                                 } else {
+                                                                      //Поиск продукта в ЭА по клиенту и продукту. Если в функцию не передан идентификатор, то всегда создаётся новый продукт
+                                                                      
+                                                                      //product = udm:(Основной:add_or_upd_product(Тип_продукта, Номер, Дата_продукта, НД(), js:Основной:Клиент_фл(client_fis), НД(), Вид_продукта, НД(), Администрирование:Пользователь:По_логину_все('xECM')[0]));
+                                                                      //udm:(фиксировать());
+                                                                 }
+
+                                                                 
+
+                                                            }
+
+                                                            //Поиск документа В HDDWH 
+                                                            
+                                                       }
+                                                       
+                                                       // udm:(Версия_документа := Основной:add_or_upd_doc(Тип_документа, Тип_ИС, НД(), СЕЙЧАС(), НД(), НД(), Номер_документа, Ид_в_ИС, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0], НД(), НД(), НД(), НД()));
+                                                       //udm:(фиксировать());
+                                                       //file_fis = udm:(Основной:add_or_upd_file(Название_файла, Расширение_файла, Размер, Страница, СЕЙЧАС(), НД(), НД(),Всего_страниц, guid_storage, Хэш, Бинарник, js:string(file_fis.Идентификатор), Версия_документа, true,true));
+                                                  }
+                                             } 
+
+
+                                   } else {
+                                        Error_obj = {};
+                                        Error_obj.ObjectType = 'Files';
+                                        Error_obj.Id = document_m.DocumentId;
+                                        Error_obj.ErrorText = 'Отсутствует или не заполнен объект Files';
+                                        Error.push(Error_obj); 
+                                        Error_obj = {};
+                                   }
+                                 if (!Ошибка_файл_цикл && !Ошибка_документ_цикл && !Ошибка_продукт_цикл && !Ошибка_клиент_цикл) {
+                                      //сохраняем этот документ
+                                      Log4JS.log('Сохраняем документ '+udm:(DocumentId)+'; Номер цикла: '+m,logname);
+                                      //saved_docs = [];
+                                      saved_docs.push(udm:(DocumentId));   
+                                      //udm:(Основной:add_or_upd_doc_product(js:Основной:Продукты(product_fis),Документ,НД()));
+
+                                 }  
+                                                                                                    
+                              } 
+                              
+
+                              
+                         } else {
+                              //Log4JS.log('Зашли в цикл Документ: ELSE ',logname);
+                              Error_obj = {};
+                              Error_obj.ObjectType = 'Documents';
+                              Error_obj.Id = product_k.ProductId;
+                              //Log4JS.log('Зашли в цикл Документ: ELSE Error_obj.Id = product_k.ProductId; '+product_k.ProductId,logname);
+                              Error_obj.ErrorText = 'Отсутствует или не заполнен объект Documents';
+                              Error.push(Error_obj); //Нельзя запушить объектв объект! Надо пушить в матрешку!
+                              Error_obj = {};
+                         }
+                         Log4JS.log('Перед сохранением продукта: !Ошибка_продукт_цикл '+!Ошибка_продукт_цикл+'; !!saved_docs : '+!!saved_docs+'  saved_docs.length  '+saved_docs.length,logname);
+                         if (!Ошибка_продукт_цикл && !!saved_docs && saved_docs.length>0) {
+                              //сохраняем продукт //Клиента определяем выше
+                              // udm:(фиксировать());
+                              Log4JS.log('Сохраняем продукт '+udm:(ProductId)+'; Номер цикла: '+k,logname);
+                              saved_prods.push(udm:(ProductId));
+                              //product_fis = udm:(Основной:add_or_upd_product(Тип_продукта, Номер, Дата_продукта, НД(), js:Основной:Клиент_фл(client_fis), НД(), Вид_продукта, НД(), Администрирование:Пользователь:По_логину_все(js:string(login_for_user_search))[0]));
+                              // udm:(фиксировать());
+
+                         }
+                         Log4JS.log('Перед сохранением клиента: !Ошибка_клиент_цикл '+!Ошибка_клиент_цикл+'; !!saved_prods : '+!!saved_prods+'  saved_prods.length  '+saved_prods.length,logname);
+                         if (!Ошибка_клиент_цикл && !Ошибка_продукт_цикл && !!saved_prods && saved_prods.length>0) {
+                              //сохраняем клиента
+                              Log4JS.log('Сохраняем клиента '+udm:(ProductId)+'; Номер цикла: '+k,logname);
+                         }  
+                                        
+                    }
+               } else {
+                    Error_obj = {};
+                    Error_obj.ObjectType = 'Products';
+                    Error_obj.Id = client_j.ClientId;
+                    Error_obj.ErrorText = 'Отсутствует или не заполнен объект Products';
+                    Error.push(Error_obj); 
+                    Error_obj = {};                    
+               }
+          if (!!Error_client_j) {Error_client_j = {}};                 
+           
+          }
+
+     } else {
+          Error_obj = {};
+          Error_obj.ObjectType = 'Clients';
+          Error_obj.Id = '';
+          Error_obj.ErrorText = 'Отсутствует или не заполнен объект Clients';
+          Error.push(Error_obj); 
+          Error_obj = {};
+     }
+
+
+     }
+      catch(e) {
+     StatusText_total = e;
+     Код_total = '500';    
+     Log4JS.log("Ошибка: " + e, logname)
+     };
+     }
+}
+;
+
+
+
+//Ответ по результатам работы функции
+var Ans = {};
+Ans.Status={};
+if (Код_total!='500') {
+if (Error.Clients.length>0) {
+Ans.Errors = {};
+Ans.Errors = Error;
+Ans.Status.StatusCode = parseInt('400');
+Ans.Status.StatusText = 'Некоторые или все продукты не приняты по причине ошибки';
+} else {
+Ans.Status.StatusCode = parseInt('200');
+Ans.Status.StatusText = 'Продукты приняты без ошибок';
+};
+} else {
+     Ans.Status.StatusCode = parseInt(Код_total);
+     if (!StatusText_total) {
+     Ans.Status.StatusText = String(udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0].Название));
+     } else {
+        Ans.Status.StatusText = String(StatusText_total); 
+     }
+}
+udm:(RESTRESPONSESTATUS(js:целое(Ans.Status.StatusCode)));
+udm:(AnsStoreDoc := js:string(JSON.stringify(Ans)));
+Log4JS.log('AnsStoreDoc ' +  udm:(AnsStoreDoc) ,logname);
+Log4JS.log('Окончание обработки запроса: '+udm:(СЕЙЧАС()),logname);
+return udm:(AnsStoreDoc);

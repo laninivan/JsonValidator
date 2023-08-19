@@ -1,0 +1,120 @@
+var ReqScanRequestStatus_js = JSON.parse(udm:(ReqScanRequestStatus)); // распарсили строку в объект
+var arr;
+var AnsScanRequestStatus_js ={}; // объект ответа 
+var Ans ={}; // объект ответа 
+var DictType;
+var item;
+var token_valid;
+var accessToken;
+var IdRequest;
+var DocId;
+var ScanOrderNumber;
+var Код_статуса_total;
+var Код_total ='200';
+Ans.Status= {};
+
+try { 
+    accessToken = udm:(RESTHEADERVALUES("Authorization"));
+}catch(e){
+    token_valid = 'Unauthorized';
+}
+if ( !!accessToken && (String(accessToken)).indexOf('.')>-1) {
+   try { 
+          token_valid =udm:(Сервисный:tokenAuthenticationKeycloak(js:string((String(accessToken)))));
+       } catch(e){
+         token_valid = 'Unauthorized';
+      }
+} else {
+    token_valid = 'Unauthorized';
+}
+
+if (token_valid !="Ok"){
+   Код_total = (token_valid =="Token expired")?'402':'401';
+   Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+   Ans.Status.StatusCode = parseInt(Код_статуса_total.Код);
+   Ans.Status.StatusText  = String(Код_статуса_total.Название)  ;
+   udm:(AnsScanRequestStatus := js:string(JSON.stringify(Ans))); 
+} else { 
+     var arr = ReqScanRequestStatus_js.ReqScanRequestStatus.ScanRequests;  //'{"ReqScanRequestStatus":{"ScanRequests":[{"Id":"428"}]}}'
+     var arr_str_ =[];
+     if (!!arr) {
+        for (var j=0; j<arr.length; j++ ){
+          arr_str_.push(arr[j].Id);
+        }
+       var arr_str = arr_str_.join(','); // перечисление ид-ков
+    
+      // return arr_str;
+      var AnsScan = udm:(Основной:Для_ScanRequestStatus:По_ид_запросов(js:string(arr_str)));
+      AnsScanRequestStatus_js.ScanRequestStatuses = [];
+      var AnsScan_j;
+      var  ScanRequestStatus1;
+      var Doc;
+    
+      var ScanOrder;
+      if (!!AnsScan) {
+        for (var j=0; j<AnsScan.length; j++ ){
+          AnsScan_j= AnsScan[j];
+            if (!IdRequest || IdRequest != AnsScan_j.IdRequest){
+                ScanRequestStatus1 = {};
+                IdRequest =  String(AnsScan_j.IdRequest);
+                ScanRequestStatus1.Id =  String(AnsScan_j.IdRequest);
+                if (!!AnsScan_j.Author)                 ScanRequestStatus1.Author        =    String(AnsScan_j.Author); 
+                if (!!AnsScan_j.Approver)               ScanRequestStatus1.Approver      =    String(AnsScan_j.Approver);  
+                if (!!AnsScan_j.CreateDate)             ScanRequestStatus1.CreateDate    =    String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(AnsScan_j.CreateDate)); 
+                if (!!AnsScan_j.UpdateDate)             ScanRequestStatus1.UpdateDate    =    String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(AnsScan_j.UpdateDate)); 
+                if (!!AnsScan_j.CreateDateOSG)          ScanRequestStatus1.CreateDateOSG =    String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(AnsScan_j.CreateDateOSG)); 
+                if (!!AnsScan_j.ExecutionDateRequest)   ScanRequestStatus1.ExecutionDate =    String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(AnsScan_j.ExecutionDateRequest)); 
+                if (!!AnsScan_j.Priority)               ScanRequestStatus1.Priority      =    String(AnsScan_j.Priority);  
+                if (!!AnsScan_j.DeadlineViolation)      ScanRequestStatus1.DeadlineViolation =   (AnsScan_j.DeadlineViolation);  
+                if (!!AnsScan_j.ApproveStatus)          ScanRequestStatus1.ApproveStatus     =    String(AnsScan_j.ApproveStatus);  
+                if (!!AnsScan_j.ScanRequestStatus)      ScanRequestStatus1.ScanRequestStatus =    String(AnsScan_j.ScanRequestStatus);  
+                if (!!AnsScan_j.DisapproveReason)       ScanRequestStatus1.DisapproveReason  =    String(AnsScan_j.DisapproveReason);  
+                if (!!AnsScan_j.ErrorOSG)               ScanRequestStatus1.ErrorOSG      =    String(AnsScan_j.ErrorOSG);  
+                ScanRequestStatus1.DocsCount        = 0;
+                ScanRequestStatus1.ScannedDocsCount = 0;
+              //  if (!!AnsScan_j.DocsCount)              ScanRequestStatus1.DocsCount =    AnsScan_j.DocsCount;  
+              //  if (!!AnsScan_j.ScannedDocsCount)              ScanRequestStatus1.ScannedDocsCount =    AnsScan_j.ScannedDocsCount; 
+              if (!!IdRequest)   AnsScanRequestStatus_js.ScanRequestStatuses.push(ScanRequestStatus1); 
+              ScanRequestStatus1.ScanOrders =[];
+            }
+        
+        if (!ScanOrderNumber || String(ScanOrderNumber) != String(AnsScan_j.ScanOrderNumber)) { // если перескочили на новый продукт , создаем объект 
+            ScanOrder ={};
+            if (!!AnsScan_j.ScanOrderNumber) {
+              ScanOrder.ScanOrderNumber =  String(AnsScan_j.ScanOrderNumber);
+              ScanOrderNumber = String(AnsScan_j.ScanOrderNumber);
+            }
+            if (!!AnsScan_j.PlannedExecutionDate)   ScanOrder.PlannedExecutionDate =    String(Packages.java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(AnsScan_j.PlannedExecutionDate)); 
+            if (!!AnsScan_j.ExecutionDateOrder)     ScanOrder.ExecutionDate        =    String(AnsScan_j.ExecutionDateOrder);  
+            if (!!AnsScan_j.ScanOrderStatus)        ScanOrder.ScanOrderStatus      =   String(AnsScan_j.ScanOrderStatus);  
+            ScanOrder.Docs =[];
+            ScanRequestStatus1.ScanOrders.push(ScanOrder); 
+                  
+        }
+
+        if (!DocId || DocId != AnsScan_j.DocId) { // если перескочили на новый продукт , создаем объект 
+            Doc ={};
+            Doc.DocId =  String(AnsScan_j.DocId);
+            DocId = String(AnsScan_j.DocId);
+            ScanRequestStatus1.DocsCount =ScanRequestStatus1.DocsCount +1;
+            Doc.DocDownloaded =    !!AnsScan_j.DocDownloaded;   
+            if (!!AnsScan_j.DocStatus)     Doc.DocStatus =    String(AnsScan_j.DocStatus); 
+            if (!!AnsScan_j.DocDownloaded) {ScanRequestStatus1.ScannedDocsCount =ScanRequestStatus1.ScannedDocsCount+1;}
+            if (!!AnsScan_j.DocId)         ScanOrder.Docs.push(Doc); 
+                  
+        }
+       }
+      }
+      Код_статуса_total = udm:(Основной:Коды_статусов:По_коду(js:string(Код_total))[0]);
+      Ans.Status.StatusCode = parseInt(Код_статуса_total.Код);
+      Ans.Status.StatusText  = String(Код_статуса_total.Название)  ;
+      Ans.AnsScanRequestStatus= AnsScanRequestStatus_js;
+     } else {
+        Ans.Status.StatusCode = 500;
+        Ans.Status.StatusText  = 'Bad request' ;
+     }
+}
+udm:(RESTRESPONSESTATUS(js:целое(Ans.Status.StatusCode)));
+udm:(AnsScanRequestStatus := js:string( JSON.stringify(Ans)));
+return udm:(AnsScanRequestStatus);
+ 

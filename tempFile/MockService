@@ -1,0 +1,24 @@
+var Ans = {};
+
+var ReqMockService_js= JSON.parse(udm:(ReqMockService)); // распарсили строку в объект
+if (!!ReqMockService_js && !!ReqMockService_js.ReqMockService) {
+        if (!!ReqMockService_js.ReqMockService && !!ReqMockService_js.ReqMockService.Client && ReqMockService_js.ReqMockService.Client.Documents.length > 0) { 
+            var arr_document  = ReqMockService_js.ReqMockService.Client.Documents;
+            for (var j=0; j < arr_document.length; j++) {
+                var document = arr_document[j];
+                if (document.DocField1) udm:(DocField1 := js:string(document.DocField1)); else udm:(DocField1 := НД());
+                if (document.DocField2) udm:(DocField2 := js:string(document.DocField2)); else udm:(DocField2 := НД());
+            }
+        }
+}
+else {
+    
+}
+
+Ans.Status = {};
+Ans.Status.StatusCode = '200';
+Ans.Status.StatusText = 'Запрос завершен с данными: ' + udm:(DocField1) + ' ' + udm:(DocField2);
+
+udm:(AnsMockService := js:string(JSON.stringify(Ans)));
+
+return udm:(AnsMockService);

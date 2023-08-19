@@ -1,0 +1,22 @@
+var keyWords = udm:(Сервисный:Тест_ответы:все().GET);
+var flag = true;
+var status;
+
+for (var i = 0; i < keyWords.length; i++) {
+    if (udm:(Header).indexOf(keyWords[i]) != -1) {
+        udm:(AnsGetMockService := Сервисный:Тест_ответы:По_GET(js:string(keyWords[i])).Ans);
+        status = udm:(Сервисный:Тест_ответы:По_GET(js:string(keyWords[i])).Статус)[0];
+        flag = false;
+        break;
+    }
+}
+
+if (flag) {
+    udm:(RESTRESPONSESTATUS(404));
+} else if (status) {
+    udm:(RESTRESPONSESTATUS(js:целое(status)));
+}
+
+//Packages.java.lang.Thread.sleep(120000);
+
+return udm:(AnsGetMockService);

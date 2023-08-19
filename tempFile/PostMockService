@@ -1,0 +1,21 @@
+var keyWords = udm:(Сервисный:Тест_ответы:все().POST);
+var flag = true;
+var inputNoSpaces = String(udm:(ReqPostMockService)).replace(/\s/g, '');
+var status;
+
+for (var i = 0; i < keyWords.length; i++) {
+    if (inputNoSpaces.indexOf(keyWords[i]) != -1 || udm:(Header).indexOf(keyWords[i]) != -1) {
+        udm:(AnsPostMockService := Сервисный:Тест_ответы:По_POST(js:string(keyWords[i])).Ans);
+        status = udm:(Сервисный:Тест_ответы:По_POST(js:string(keyWords[i])).Статус)[0];
+        flag = false;
+        break;
+    }
+}
+
+if (flag) {
+    udm:(RESTRESPONSESTATUS(404));
+} else if (status) {
+    udm:(RESTRESPONSESTATUS(js:целое(status)));
+}
+
+return udm:(AnsPostMockService);
