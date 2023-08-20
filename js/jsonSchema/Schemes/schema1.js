@@ -53,7 +53,8 @@ var schema1 = {
                                             "type": "float",
                                             "description": ""
                                         }
-                                    }
+                                    },
+                                    "required":["ProductId","ProductName"]
                                 }
                             },
                             "Customer": {

@@ -1,7 +1,8 @@
 function checkEmpty(element) {
     return element === "" ||
-        checkNull(element) ||
-        element === undefined;
+        checkNull(element) 
+        // ||element === undefined
+        ;
 }
 
 
